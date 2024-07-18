@@ -5,20 +5,17 @@ MANAGER_URL = "https://base.manager.example.com"
 LMS_HOST = "https://learn.example.com"
 CMS_HOST = "https://studio.learn.example.com"
 
-# Client ID and Client Secret for the LMS to be updated
-EDX_CLIENT_ID = "client_id"
-EDX_CLIENT_SECRET = "client_secret"
-
-# Client ID and Client Secret for the Manager to be updated
-MANAGER_CLIENT_ID = "client_id"
-MANAGER_CLIENT_SECRET = "client_secret"
-
 EDX_ACCESS_TOKEN_URL = f"{LMS_HOST}/oauth2/access_token/"
 MANAGER_ACCESS_TOKEN_URL = f"{MANAGER_URL}/oauth/token/"
 
+# Client ID and Client Secret for the LMS to be updated
+
+# Get CLIENT_ID and CLIENT_SECRET from the Django admin panel : LMS_HOST/admin/ibl_api_auth/oauthcredentials/
+CLIENT_ID = "replace_with_client_id"
+CLIENT_SECRET = "replace_with_client_secret"
 
 def get_access_token(
-    url=EDX_ACCESS_TOKEN_URL, client_id=EDX_CLIENT_ID, client_secret=EDX_CLIENT_SECRET
+    url=EDX_ACCESS_TOKEN_URL, client_id=CLIENT_ID, client_secret=CLIENT_SECRET
 ):
     """
     Get Access Token
@@ -63,8 +60,8 @@ def create_or_update_skill(name, slug, data, access_token=None):
     if access_token is None:
         access_token = get_access_token(
             url=MANAGER_ACCESS_TOKEN_URL,
-            client_id=MANAGER_CLIENT_ID,
-            client_secret=MANAGER_CLIENT_SECRET,
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
         )
         if access_token is None:
             return "Failed to obtain access token."
@@ -108,8 +105,8 @@ def create_or_update_desired_skill(
     if access_token is None:
         access_token = get_access_token(
             url=MANAGER_ACCESS_TOKEN_URL,
-            client_id=MANAGER_CLIENT_ID,
-            client_secret=MANAGER_CLIENT_SECRET,
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
         )
         if access_token is None:
             return "Failed to obtain access token."
@@ -155,8 +152,8 @@ def create_or_update_reported_skill(
     if access_token is None:
         access_token = get_access_token(
             url=MANAGER_ACCESS_TOKEN_URL,
-            client_id=MANAGER_CLIENT_ID,
-            client_secret=MANAGER_CLIENT_SECRET,
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
         )
         if access_token is None:
             return "Failed to obtain access token."
@@ -181,13 +178,13 @@ def create_or_update_reported_skill(
 # Example usage
 
 # inoder to create skills please update the request data with the appropriate values
-data = {"test-data": "this is some cool java data"}
-create_or_update_skills = create_or_update_skill("Java", "java", data)
+data = {"test-data": "this is some cool nodejs data"}
+create_or_update_skills = create_or_update_skill("NodeJs", "nodejs", data)
 print(create_or_update_skills)
 
 # create or update desired skills
 data = {"beep": 10}
-skills = ["Test Skill"]
+skills = ["Test Skill Dummy"]
 create_or_update_desired_skills_response = create_or_update_desired_skill(
     user_id=17, skills=skills, data=data
 )
@@ -195,7 +192,7 @@ print(create_or_update_desired_skills_response)
 
 # create or update reported skills
 data = {"beep": 10}
-skills = ["Test Skill"]
+skills = ["Test Skill Dummy"]
 create_or_update_reported_skills_response = create_or_update_reported_skill(
     user_id=17, skills=skills, data=data
 )

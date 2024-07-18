@@ -5,20 +5,17 @@ MANAGER_URL = "https://base.manager.example.com"
 LMS_HOST = "https://learn.example.com"
 CMS_HOST = "https://studio.learn.example.com"
 
-# Client ID and Client Secret for the LMS to be updated
-EDX_CLIENT_ID = "client_id"
-EDX_CLIENT_SECRET = "client_secret"
-
-# Client ID and Client Secret for the Manager to be updated
-MANAGER_CLIENT_ID = "client_id"
-MANAGER_CLIENT_SECRET = "client_secret"
-
 EDX_ACCESS_TOKEN_URL = f"{LMS_HOST}/oauth2/access_token/"
 MANAGER_ACCESS_TOKEN_URL = f"{MANAGER_URL}/oauth/token/"
 
+# Client ID and Client Secret for the LMS to be updated
+
+# Get CLIENT_ID and CLIENT_SECRET from the Django admin panel : LMS_HOST/admin/ibl_api_auth/oauthcredentials/
+CLIENT_ID = "replace_with_client_id"
+CLIENT_SECRET = "replace_with_client_secret"
 
 def get_access_token(
-    url=EDX_ACCESS_TOKEN_URL, client_id=EDX_CLIENT_ID, client_secret=EDX_CLIENT_SECRET
+    url=EDX_ACCESS_TOKEN_URL, client_id=CLIENT_ID, client_secret=CLIENT_SECRET
 ):
     """
     Get Access Token
@@ -96,6 +93,6 @@ def user_creation(username, email, password, access_token=None):
 
 # inoder to create users please update the request data with the appropriate values
 user_creations = user_creation(
-    "johndoe_111444", "johndoe+111444@iblai.tech", "somepassword4657"
+    "johndoe_111555", "johndoe+111555@example.com", "somepassword4657"
 )
 print(user_creations)

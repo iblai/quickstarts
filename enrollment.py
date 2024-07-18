@@ -5,20 +5,17 @@ MANAGER_URL = "https://base.manager.example.com"
 LMS_HOST = "https://learn.example.com"
 CMS_HOST = "https://studio.learn.example.com"
 
-# Client ID and Client Secret for the LMS to be updated
-EDX_CLIENT_ID = "client_id"
-EDX_CLIENT_SECRET = "client_secret"
-
-# Client ID and Client Secret for the Manager to be updated
-MANAGER_CLIENT_ID = "client_id"
-MANAGER_CLIENT_SECRET = "client_secret"
-
 EDX_ACCESS_TOKEN_URL = f"{LMS_HOST}/oauth2/access_token/"
 MANAGER_ACCESS_TOKEN_URL = f"{MANAGER_URL}/oauth/token/"
 
+# Client ID and Client Secret for the LMS to be updated
+
+# Get CLIENT_ID and CLIENT_SECRET from the Django admin panel : LMS_HOST/admin/ibl_api_auth/oauthcredentials/
+CLIENT_ID = "replace_with_client_id"
+CLIENT_SECRET = "replace_with_client_secret"
 
 def get_access_token(
-    url=EDX_ACCESS_TOKEN_URL, client_id=EDX_CLIENT_ID, client_secret=EDX_CLIENT_SECRET
+    url=EDX_ACCESS_TOKEN_URL, client_id=CLIENT_ID, client_secret=CLIENT_SECRET
 ):
     """
     Get Access Token
@@ -176,20 +173,20 @@ def bulk_enroll_students(
 # Example usage
 # Enroll a single user
 enroll_response = enroll_user(
-    course_id="course-v1:main+COURSE2024+T1_01", username="gipsbrian"
+    course_id="course-v1:FM+101+001", username="gipsbrian"
 )
 print(enroll_response)
 
 # # Bulk enroll users
 bulk_enroll_response = bulk_enroll_users(
-    courses=["course-v1:main+C2+2024-04", "course-v1:main+C1+2024-04"],
+    courses=["course-v1:FM+101+2023", "course-v1:FinancialAcademy+FM101+2023"],
     username="gipsbrian",
 )
 print(bulk_enroll_response)
 
 # # Bulk enroll students
 bulk_students_response = bulk_enroll_students(
-    course_id="course-v1:Science+ENRGY101+2023",
+    course_id="course-v1:ACI+0003+500",
     usernames=["gipsbrian", "johndoe_111222", "johndoe_111333"],
 )
 print(bulk_students_response)

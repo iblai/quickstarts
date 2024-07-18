@@ -5,20 +5,17 @@ MANAGER_URL = "https://base.manager.example.com"
 LMS_HOST = "https://learn.example.com"
 CMS_HOST = "https://studio.learn.example.com"
 
-# Client ID and Client Secret for the LMS to be updated
-EDX_CLIENT_ID = "client_id"
-EDX_CLIENT_SECRET = "client_secret"
-
-# Client ID and Client Secret for the Manager to be updated
-MANAGER_CLIENT_ID = "client_id"
-MANAGER_CLIENT_SECRET = "client_secret"
-
 EDX_ACCESS_TOKEN_URL = f"{LMS_HOST}/oauth2/access_token/"
 MANAGER_ACCESS_TOKEN_URL = f"{MANAGER_URL}/oauth/token/"
 
+# Client ID and Client Secret for the LMS to be updated
+
+# Get CLIENT_ID and CLIENT_SECRET from the Django admin panel : LMS_HOST/admin/ibl_api_auth/oauthcredentials/
+CLIENT_ID = "replace_with_client_id"
+CLIENT_SECRET = "replace_with_client_secret"
 
 def get_access_token(
-    url=EDX_ACCESS_TOKEN_URL, client_id=EDX_CLIENT_ID, client_secret=EDX_CLIENT_SECRET
+    url=EDX_ACCESS_TOKEN_URL, client_id=CLIENT_ID, client_secret=CLIENT_SECRET
 ):
     """
     Get Access Token
@@ -64,8 +61,8 @@ def create_or_update_role(name, slug, data, access_token=None):
     if access_token is None:
         access_token = get_access_token(
             url=MANAGER_ACCESS_TOKEN_URL,
-            client_id=MANAGER_CLIENT_ID,
-            client_secret=MANAGER_CLIENT_SECRET,
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
         )
         if access_token is None:
             return "Failed to obtain access token."
@@ -111,8 +108,8 @@ def create_or_update_desired_role(
     if access_token is None:
         access_token = get_access_token(
             url=MANAGER_ACCESS_TOKEN_URL,
-            client_id=MANAGER_CLIENT_ID,
-            client_secret=MANAGER_CLIENT_SECRET,
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
         )
         if access_token is None:
             return "Failed to obtain access token."
@@ -158,8 +155,8 @@ def create_or_update_reported_role(
     if access_token is None:
         access_token = get_access_token(
             url=MANAGER_ACCESS_TOKEN_URL,
-            client_id=MANAGER_CLIENT_ID,
-            client_secret=MANAGER_CLIENT_SECRET,
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
         )
         if access_token is None:
             return "Failed to obtain access token."
@@ -185,13 +182,13 @@ def create_or_update_reported_role(
 
 # create or update roles
 data = {"beep": 10}
-create_or_update_roles_response = create_or_update_role("Test Role", "test-role", data)
+create_or_update_roles_response = create_or_update_role("Test Role Dummy", "test-role", data)
 print(create_or_update_roles_response)
 
 
 # create or update desired roles
 data = {"beep": 10}
-roles = ["Test Role"]
+roles = ["Test Role Dummy"]
 create_or_update_desired_roles_response = create_or_update_desired_role(
     user_id=17, roles=roles, data=data
 )
@@ -199,7 +196,7 @@ print(create_or_update_desired_roles_response)
 
 # create or update reported roles
 data = {"beep": 10}
-roles = ["Test Role"]
+roles = ["Test Role Dummy"]
 create_or_update_reported_roles_response = create_or_update_reported_role(
     user_id=17, roles=roles, data=data
 )
