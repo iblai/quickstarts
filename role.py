@@ -1,34 +1,24 @@
 import requests
 
 # Base URL for the Manager, LMS and CMS to be updated
-MANAGER_URL = "https://base.manager.iblai.tech"
-LMS_HOST = "https://learn.iblai.tech"
-CMS_HOST = "https://studio.learn.iblai.tech"
+MANAGER_URL = "https://base.manager.example.com"
+LMS_HOST = "https://learn.example.com"
+CMS_HOST = "https://studio.learn.example.com"
 
 # Client ID and Client Secret for the LMS to be updated
-EDX_CLIENT_ID = "TGVuV0hLWnlXMkFTOE9mRnVLdldjNW95RVRvV0Ji"
-EDX_CLIENT_SECRET = (
-    "VTdzaEc4S2w5d3FNMmYyanBqMTBsU3NLRU5jVGtNR0VZNmd3RE5xNXNaUkVqN1V4TjhhVFRVNjBqWkxI"
-)
+EDX_CLIENT_ID = "client_id"
+EDX_CLIENT_SECRET = "client_secret"
 
 # Client ID and Client Secret for the Manager to be updated
-MANAGER_CLIENT_ID = "TGVuV0hLWnlXMkFTOE9mRnVLdldjNW95RVRvV0Ji"
-MANAGER_CLIENT_SECRET = (
-    "VTdzaEc4S2w5d3FNMmYyanBqMTBsU3NLRU5jVGtNR0VZNmd3RE5xNXNaUkVqN1V4TjhhVFRVNjBqWkxI"
-)
+MANAGER_CLIENT_ID = "client_id"
+MANAGER_CLIENT_SECRET = "client_secret"
 
-EDX_ACCESS_TOEKN_URL = f"{LMS_HOST}/oauth2/access_token/"
-MANAGER_ACCESS_TOEKN_URL = f"{MANAGER_URL}/oauth/token/"
-COURSE_CREATION_URL = f"{CMS_HOST}/api/ibl/manage/course"
-USER_CREATION_URL = f"{LMS_HOST}/api/ibl/users/manage/"
-SKILLS_URL = f"{MANAGER_URL}/api/catalog/skills/"
-
-# Check in the list of issuers the platforms in your manager : <manager_url>/admin/dl_cred_app/issuer/
-CRED_ISSUER_PLATFORM = "ibl"  # This is the org to which the issuer is linked
+EDX_ACCESS_TOKEN_URL = f"{LMS_HOST}/oauth2/access_token/"
+MANAGER_ACCESS_TOKEN_URL = f"{MANAGER_URL}/oauth/token/"
 
 
 def get_access_token(
-    url=EDX_ACCESS_TOEKN_URL, client_id=EDX_CLIENT_ID, client_secret=EDX_CLIENT_SECRET
+    url=EDX_ACCESS_TOKEN_URL, client_id=EDX_CLIENT_ID, client_secret=EDX_CLIENT_SECRET
 ):
     """
     Get Access Token
@@ -73,7 +63,7 @@ def create_or_update_role(name, slug, data, access_token=None):
 
     if access_token is None:
         access_token = get_access_token(
-            url=MANAGER_ACCESS_TOEKN_URL,
+            url=MANAGER_ACCESS_TOKEN_URL,
             client_id=MANAGER_CLIENT_ID,
             client_secret=MANAGER_CLIENT_SECRET,
         )
@@ -120,7 +110,7 @@ def create_or_update_desired_role(
 
     if access_token is None:
         access_token = get_access_token(
-            url=MANAGER_ACCESS_TOEKN_URL,
+            url=MANAGER_ACCESS_TOKEN_URL,
             client_id=MANAGER_CLIENT_ID,
             client_secret=MANAGER_CLIENT_SECRET,
         )
@@ -167,7 +157,7 @@ def create_or_update_reported_role(
 
     if access_token is None:
         access_token = get_access_token(
-            url=MANAGER_ACCESS_TOEKN_URL,
+            url=MANAGER_ACCESS_TOKEN_URL,
             client_id=MANAGER_CLIENT_ID,
             client_secret=MANAGER_CLIENT_SECRET,
         )

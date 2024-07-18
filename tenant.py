@@ -7,18 +7,18 @@ CMS_HOST = "https://studio.learn.iblai.ai"
 
 # Client ID and Client Secret for the LMS to be updated
 EDX_CLIENT_ID = "client_id"
-EDX_CLIENT_SECRET = "client_secrete"
+EDX_CLIENT_SECRET = "client_secret"
 
 # Client ID and Client Secret for the Manager to be updated
 MANAGER_CLIENT_ID = "client_id"
-MANAGER_CLIENT_SECRET = "client_secrete"
+MANAGER_CLIENT_SECRET = "client_secret"
 
-EDX_ACCESS_TOEKN_URL = f"{LMS_HOST}/oauth2/access_token/"
-MANAGER_ACCESS_TOEKN_URL = f"{MANAGER_URL}/oauth/token/"
+EDX_ACCESS_TOKEN_URL = f"{LMS_HOST}/oauth2/access_token/"
+MANAGER_ACCESS_TOKEN_URL = f"{MANAGER_URL}/oauth/token/"
 
 
 def get_access_token(
-    url=EDX_ACCESS_TOEKN_URL, client_id=EDX_CLIENT_ID, client_secret=EDX_CLIENT_SECRET
+    url=EDX_ACCESS_TOKEN_URL, client_id=EDX_CLIENT_ID, client_secret=EDX_CLIENT_SECRET
 ):
     """
     Get Access Token
@@ -62,7 +62,7 @@ def launch_tenant(username, email, password, firstname, lastname, role, key, nam
     print(url)
     if access_token is None:
         access_token = get_access_token(
-            url=MANAGER_ACCESS_TOEKN_URL,
+            url=MANAGER_ACCESS_TOKEN_URL,
             client_id=MANAGER_CLIENT_ID,
             client_secret=MANAGER_CLIENT_SECRET,
         )
