@@ -1,4 +1,5 @@
 import json
+
 import requests
 
 # Base URL for the Manager, LMS and CMS to be updated
@@ -15,7 +16,7 @@ MANAGER_CLIENT_ID = "some client id"
 MANAGER_CLIENT_SECRET = (
     "some client secret"
 )
-EDX_ACCESS_TOEKN_URL = f"{LMS_HOST}/oauth2/access_token/"
+EDX_ACCESS_TOKEN_URL = f"{LMS_HOST}/oauth2/access_token/"
 MANAGER_ACCESS_TOKEN_URL = f"{MANAGER_URL}/oauth/token/"
 COURSE_CREATION_URL = f"{CMS_HOST}/api/ibl/manage/course"
 USER_CREATION_URL = f"{LMS_HOST}/api/ibl/users/manage/"
@@ -26,7 +27,7 @@ CRED_ISSUER_PLATFORM = "ibl" # This is the org to which the issuer is linked
 
 
 def get_access_token(
-    url=EDX_ACCESS_TOEKN_URL, client_id=EDX_CLIENT_ID, client_secret=EDX_CLIENT_SECRET
+    url=EDX_ACCESS_TOKEN_URL, client_id=EDX_CLIENT_ID, client_secret=EDX_CLIENT_SECRET
 ):
     """
     Get Access Token

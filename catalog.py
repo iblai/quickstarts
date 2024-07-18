@@ -1,24 +1,24 @@
 import requests
 
 # Base URL for the Manager, LMS and CMS to be updated
-MANAGER_URL = "https://base.manager.iblai.ai"
-LMS_HOST = "https://learn.iblai.ai"
-CMS_HOST = "https://studio.learn.iblai.ai"
+MANAGER_URL = "https://base.manager.example.com"
+LMS_HOST = "https://learn.example.com"
+CMS_HOST = "https://studio.learn.example.com"
 
 # Client ID and Client Secret for the LMS to be updated
 EDX_CLIENT_ID = "client_id"
-EDX_CLIENT_SECRET = "client_secrete"
+EDX_CLIENT_SECRET = "client_secret"
 
 # Client ID and Client Secret for the Manager to be updated
 MANAGER_CLIENT_ID = "client_id"
-MANAGER_CLIENT_SECRET = "client_secrete"
+MANAGER_CLIENT_SECRET = "client_secret"
 
-EDX_ACCESS_TOEKN_URL = f"{LMS_HOST}/oauth2/access_token/"
-MANAGER_ACCESS_TOEKN_URL = f"{MANAGER_URL}/oauth/token/"
+EDX_ACCESS_TOKEN_URL = f"{LMS_HOST}/oauth2/access_token/"
+MANAGER_ACCESS_TOKEN_URL = f"{MANAGER_URL}/oauth/token/"
 
 
 def get_access_token(
-    url=EDX_ACCESS_TOEKN_URL, client_id=EDX_CLIENT_ID, client_secret=EDX_CLIENT_SECRET
+    url=EDX_ACCESS_TOKEN_URL, client_id=EDX_CLIENT_ID, client_secret=EDX_CLIENT_SECRET
 ):
     """
     Get Access Token
@@ -139,7 +139,7 @@ def create_or_update_program(
 
     if access_token is None:
         access_token = get_access_token(
-            url=MANAGER_ACCESS_TOEKN_URL,
+            url=MANAGER_ACCESS_TOKEN_URL,
             client_id=MANAGER_CLIENT_ID,
             client_secret=MANAGER_CLIENT_SECRET,
         )
@@ -195,7 +195,7 @@ def create_or_update_pathway(
 
     if access_token is None:
         access_token = get_access_token(
-            url=MANAGER_ACCESS_TOEKN_URL,
+            url=MANAGER_ACCESS_TOKEN_URL,
             client_id=MANAGER_CLIENT_ID,
             client_secret=MANAGER_CLIENT_SECRET,
         )
@@ -245,7 +245,7 @@ def create_or_update_resource(name, url, resource_type, data, access_token=None)
 
     if access_token is None:
         access_token = get_access_token(
-            url=MANAGER_ACCESS_TOEKN_URL,
+            url=MANAGER_ACCESS_TOKEN_URL,
             client_id=MANAGER_CLIENT_ID,
             client_secret=MANAGER_CLIENT_SECRET,
         )
