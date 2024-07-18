@@ -1,24 +1,21 @@
 import requests
 
 # Base URL for the Manager, LMS and CMS to be updated
-MANAGER_URL = "https://base.manager.iblai.ai"
-LMS_HOST = "https://learn.iblai.ai"
-CMS_HOST = "https://studio.learn.iblai.ai"
-
-# Client ID and Client Secret for the LMS to be updated
-EDX_CLIENT_ID = "client_id"
-EDX_CLIENT_SECRET = "client_secret"
-
-# Client ID and Client Secret for the Manager to be updated
-MANAGER_CLIENT_ID = "client_id"
-MANAGER_CLIENT_SECRET = "client_secret"
+MANAGER_URL = "https://base.manager.example.com"
+LMS_HOST = "https://learn.example.com"
+CMS_HOST = "https://studio.learn.example.com"
 
 EDX_ACCESS_TOKEN_URL = f"{LMS_HOST}/oauth2/access_token/"
 MANAGER_ACCESS_TOKEN_URL = f"{MANAGER_URL}/oauth/token/"
 
+# Client ID and Client Secret for the LMS to be updated
+
+# Get CLIENT_ID and CLIENT_SECRET from the Django admin panel : LMS_HOST/admin/ibl_api_auth/oauthcredentials/
+CLIENT_ID = "replace_with_client_id"
+CLIENT_SECRET = "replace_with_client_secret"
 
 def get_access_token(
-    url=EDX_ACCESS_TOKEN_URL, client_id=EDX_CLIENT_ID, client_secret=EDX_CLIENT_SECRET
+    url=EDX_ACCESS_TOKEN_URL, client_id=CLIENT_ID, client_secret=CLIENT_SECRET
 ):
     """
     Get Access Token
@@ -63,8 +60,8 @@ def launch_tenant(username, email, password, firstname, lastname, role, key, nam
     if access_token is None:
         access_token = get_access_token(
             url=MANAGER_ACCESS_TOKEN_URL,
-            client_id=MANAGER_CLIENT_ID,
-            client_secret=MANAGER_CLIENT_SECRET,
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
         )
         if access_token is None:
             return "Failed to obtain access token."
@@ -96,14 +93,14 @@ def launch_tenant(username, email, password, firstname, lastname, role, key, nam
 
 # Sample call to launch_tenant function
 launch_tenant_response = launch_tenant(
-    username="adminuser",
-    email="admin@example.com",
+    username="adminuser1234",
+    email="admin+1234@example.com",
     password="securepassword123",
     firstname="Admin",
     lastname="User",
     role="org-instructor",
-    key="uniqueplatformkey",
-    name="My New Platform"
+    key="uniqueplatformkey1234",
+    name="My New Platform 1234"
 )
 
 print(launch_tenant_response)
