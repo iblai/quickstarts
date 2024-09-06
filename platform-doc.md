@@ -511,6 +511,7 @@ For OAuth2 and SSO configurations, refer to the following URLs:
 - Learning Management System:
   - OAuth2: https://learn.example.com/admin/oauth2_provider/application/
   - OpenID Connect: https://learn.example.com/admin/oidc_provider/client/
+
     Client is configured with the following:
      - Enabled: True (check)
      - Name: IBL (Client Name)
