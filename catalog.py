@@ -546,7 +546,3 @@ def add_lti_passport(course_key, lti_passport, access_token=None):
     else:
         print(f"Failed to add LTI passport. Status code: {response.status_code}, Response: {response.text}")
         return None
-
-# Example usage of new functions
-if __name__ == "__main__":
-    # ... (rest of the code remains unchanged) ...
