@@ -511,7 +511,7 @@ For OAuth2 and SSO configurations, refer to the following URLs:
 - Learning Management System:
   - OAuth2: https://learn.example.com/admin/oauth2_provider/application/
   - OpenID Connect: https://learn.example.com/admin/oidc_provider/client/
-    - Fill in the following fields:
+    - Client is configured with the following:
      - Enabled: True (check)
      - Name: IBL (Client Name)
      - Slug: <oauth_slug>
@@ -524,6 +524,8 @@ For OAuth2 and SSO configurations, refer to the following URLs:
      - Backend name: <oauth_slug>
      - Client ID: <client_id>
      - Client Secret: <client_secret>
+
+     SSO provider should have set:
      - Client Type: Confidential
      - Authorization Grant Type: Authorization code
      - Redirect URIs: https://learn.example.com/auth/complete/<oauth_slug>/
