@@ -8,6 +8,7 @@ from websockets.client import connect
 import logging
 import httpx
 
+
 logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger(__name__)
@@ -22,8 +23,7 @@ username = ""  # platform admin username
 
 # this must be a platform api key
 access_token = ""
-
-mentor_name = "Test Mentor"
+mentor_name = "Leah AI Mentor"
 
 
 async def create_mentor_with_settings(data, headers):
@@ -156,21 +156,25 @@ async def chat_with_websocket(session_id: str, mentor: str, tenant: str, usernam
             "name": mentor,
             "tenant": tenant,
             "username": username,
+            # pathway must be the name of the mentor.
+            # `pathway` is the identifier for the vector store path where documents were trained to.
+            # Except for special cases, the default pathway name is the name of the mentor
+            "pathway": mentor,
         },
         "session_id": session_id,
         # `token` is the access token for the user.
         "token": access_token,
-        # `pathway` is the identifier for the vector store path where documents were trained to.
-        # Except for special cases, the default pathway name is the name of the mentor
-        "pathway": mentor,
         # `page_content` parameter is optional. it should only be used if you intend
         # to send extra context to the mentor. This is generally the text content of the current webpage.
-        "page_content": "...optional parameter to pass the content of the current web page to the mentor.",
+        # "page_content": "...optional parameter to pass the content of the current web page to the mentor.",
         # `prompt` parameter is the question or message to the mentor
-        "prompt": "Who is Rayana Barnawi",
+        "prompt": "explain healthcare",
     }
 
     ws = await connect(f"{asgi_base_url}/ws/langflow/")
+    data_without_prompt = {**data}
+    data_without_prompt.pop("prompt", "")
+    logger.info("data without prompt: %s", data_without_prompt)
     await ws.send(json.dumps(data))
     received_data = await ws.recv()
     logger.info("%s", received_data)
@@ -179,17 +183,13 @@ async def chat_with_websocket(session_id: str, mentor: str, tenant: str, usernam
     # getting a value of `connected` means authentication was successful and
     # the user has permissions to access the said mentor
     logger.info("websocket status: %s", json.loads(received_data)["detail"])
-    logger.info("Question: %s", data.get("prompt"))
+    # logger.info("Question: %s", data.get("prompt"))
     await ws.send(json.dumps(data))
     while True:
         try:
-            data_rec = await asyncio.wait_for(ws.recv(), timeout=4)
+            data_rec = await asyncio.wait_for(ws.recv(), timeout=10)
+            logger.info("received data: %s", data_rec)
             data_json: dict[str, str] = json.loads(data_rec)
-
-            # if an `eos` value of `True` is received, break the loop.
-            # this means the mentor has finished generating the response.
-            if data_json.get("eos"):
-                break
 
             # if `data` is present in the response,
             # then this is a token that needs to be shown to the user.
@@ -197,8 +197,14 @@ async def chat_with_websocket(session_id: str, mentor: str, tenant: str, usernam
             if data_to_write:
                 # print the token to the console.
                 print(data_to_write, end="")
+            # if an `eos` value of `True` is received, break the loop.
+            # this means the mentor has finished generating the response.
+            if data_json.get("eos"):
+                logger.warning("eos received. breaking out of loop")
+                break
 
         except asyncio.TimeoutError:
+            logger.warning("timeout error. breaking out of loop")
             sys.stdout.write("\n")
             break
     await ws.close()
@@ -227,5 +233,6 @@ async def start():
 
 
 if __name__ == "__main__":
+
     loop = asyncio.get_event_loop()
     loop.run_until_complete(start())
