@@ -73,4 +73,6 @@ if __name__ == "__main__":
         log.error('Usage: python quickstart.py "<prompt>"')
         sys.exit(1)
     prompt = sys.argv[1]
+    # - Provide a mentor_unique_id to create a new session with an existing mentor.
+    # - Provide a mentor_unique_id and session_id to continue an existing session.
     run(prompt, mentor_unique_id="", session_id="")
