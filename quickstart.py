@@ -69,6 +69,7 @@ def run(prompt: str, mentor_unique_id: str = "", session_id: str = "") -> None:
 
 if __name__ == "__main__":
     api.validate_env("IBL_TENANT", "IBL_USERNAME", "IBL_PLATFORM_API_KEY")
+    log.info(f"Using tenant={TENANT}, username={USERNAME}")
     if len(sys.argv) < 2:
         log.error('Usage: python quickstart.py "<prompt>"')
         sys.exit(1)
