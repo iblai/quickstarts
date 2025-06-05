@@ -15,6 +15,8 @@ log = logging.getLogger(__name__)
 TENANT = os.getenv("IBL_TENANT", "")
 USERNAME = os.getenv("IBL_USERNAME", "")
 PLATFORM_API_KEY = os.getenv("IBL_PLATFORM_API_KEY", "")
+MENTOR_ID = os.getenv("IBL_MENTOR_ID", "")
+SESSION_ID = os.getenv("IBL_SESSION_ID", "")
 
 
 def run(prompt: str, mentor_unique_id: str = "", session_id: str = "") -> None:
@@ -74,6 +76,10 @@ if __name__ == "__main__":
         log.error('Usage: python quickstart.py "<prompt>"')
         sys.exit(1)
     prompt = sys.argv[1]
+
+    if SESSION_ID and not MENTOR_ID:
+        log.error("If IBL_SESSION_ID is set, IBL_MENTOR_ID must also be set.")
+        sys.exit(1)
     # - Provide a mentor_unique_id to create a new session with an existing mentor.
     # - Provide a mentor_unique_id and session_id to continue an existing session.
-    run(prompt, mentor_unique_id="", session_id="")
+    run(prompt, mentor_unique_id=MENTOR_ID, session_id=SESSION_ID)
