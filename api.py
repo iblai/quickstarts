@@ -11,7 +11,6 @@ import requests
 from websockets.client import connect
 
 log = logging.getLogger("api")
-log.setLevel(logging.INFO)
 
 MANAGER_URL = os.getenv("IBL_MANAGER_URL", "https://base.manager.iblai.app")
 ASGI_URL = os.getenv("IBL_ASGI_URL", "wss://asgi.data.iblai.app")
