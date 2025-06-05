@@ -10,7 +10,7 @@ import api
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("quickstart")
 
 TENANT = os.getenv("IBL_TENANT", "")
 USERNAME = os.getenv("IBL_USERNAME", "")
@@ -71,7 +71,9 @@ def run(prompt: str, mentor_unique_id: str = "", session_id: str = "") -> None:
 
 if __name__ == "__main__":
     api.validate_env("IBL_TENANT", "IBL_USERNAME", "IBL_PLATFORM_API_KEY")
-    log.info(f"Using tenant={TENANT}, username={USERNAME}")
+    log.info("Using tenant=%s, username=%s", TENANT, USERNAME)
+    log.info("Using Manager URL: %s", api.MANAGER_URL)
+    log.info("Using Asgi URL: %s", api.ASGI_URL)
     if len(sys.argv) < 2:
         log.error('Usage: python quickstart.py "<prompt>"')
         sys.exit(1)
