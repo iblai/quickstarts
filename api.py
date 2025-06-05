@@ -12,8 +12,10 @@ from websockets.client import connect
 
 log = logging.getLogger("api")
 
-MANAGER_URL = os.getenv("IBL_MANAGER_URL", "https://base.manager.iblai.app")
-ASGI_URL = os.getenv("IBL_ASGI_URL", "wss://asgi.data.iblai.app")
+DEFAULT_MANAGER_URL = "https://base.manager.iblai.app"
+DEFAULT_ASGI_URL = "wss://asgi.data.iblai.app"
+MANAGER_URL = os.getenv("IBL_MANAGER_URL", DEFAULT_MANAGER_URL) or DEFAULT_MANAGER_URL
+ASGI_URL = os.getenv("IBL_ASGI_URL", DEFAULT_ASGI_URL) or DEFAULT_ASGI_URL
 
 
 def create_mentor(
