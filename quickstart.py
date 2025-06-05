@@ -80,7 +80,7 @@ if __name__ == "__main__":
     prompt = sys.argv[1]
 
     if SESSION_ID and not MENTOR_ID:
-        log.error("If IBL_SESSION_ID is set, IBL_MENTOR_ID must also be set.")
+        log.error("Error: If IBL_SESSION_ID is set, IBL_MENTOR_ID must also be set.")
         sys.exit(1)
     # - Provide a mentor_unique_id to create a new session with an existing mentor.
     # - Provide a mentor_unique_id and session_id to continue an existing session.
