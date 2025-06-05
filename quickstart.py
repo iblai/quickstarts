@@ -1,0 +1,79 @@
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import random
+import sys
+
+import api
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+log = logging.getLogger(__name__)
+
+TENANT = os.getenv("IBL_TENANT", "")
+USERNAME = os.getenv("IBL_USERNAME", "")
+PLATFORM_API_KEY = os.getenv("IBL_PLATFORM_API_KEY", "")
+
+
+def run(prompt: str, mentor_unique_id: str = "", session_id: str = "") -> None:
+    """Chat with a mentor using an existing mentor/session or create a new one.
+
+    - Provide a mentor_unique_id to create a new session with an existing mentor.
+    - Provide a mentor_unique_id and session_id to continue an existing session.
+    """
+    if not mentor_unique_id:
+        mentor_name = f"Mentor-{random.randint(0, 100)}"
+        log.info("Creating a new mentor: %s", mentor_name)
+        mentor_settings = {
+            "new_mentor_name": mentor_name,
+            "template_name": "ai-mentor",
+            "display_name": mentor_name,
+            "description": "A mentor used to explain difficult concepts in simple terms",
+            "system_prompt": "Explain it like the user is a 5-year-old",
+        }
+        mentor = api.create_mentor(
+            api_token=PLATFORM_API_KEY,
+            tenant=TENANT,
+            username=USERNAME,
+            settings=mentor_settings,
+        )
+        mentor_unique_id = mentor["unique_id"]
+        log.info("Created Mentor: %s", mentor_unique_id)
+    else:
+        log.info("Using existing Mentor: %s", mentor_unique_id)
+
+    if not session_id:
+        log.info("Creating a new session for mentor: %s", mentor_unique_id)
+        session_id = api.create_chat_session(
+            username=USERNAME,
+            tenant=TENANT,
+            mentor_unique_id=mentor_unique_id,
+        )
+        log.info("Created Session ID: %s", session_id)
+    else:
+        log.info("Using existing Session ID: %s", session_id)
+
+    asyncio.run(
+        api.chat_with_websocket(
+            prompt=prompt,
+            session_id=session_id,
+            mentor=mentor_unique_id,
+            tenant=TENANT,
+            username=USERNAME,
+            api_key=PLATFORM_API_KEY,
+        )
+    )
+
+
+if __name__ == "__main__":
+    api.validate_env("IBL_TENANT", "IBL_USERNAME", "IBL_PLATFORM_API_KEY")
+    log.info(f"Using tenant={TENANT}, username={USERNAME}")
+    if len(sys.argv) < 2:
+        log.error('Usage: python quickstart.py "<prompt>"')
+        sys.exit(1)
+    prompt = sys.argv[1]
+    # - Provide a mentor_unique_id to create a new session with an existing mentor.
+    # - Provide a mentor_unique_id and session_id to continue an existing session.
+    run(prompt, mentor_unique_id="", session_id="")
