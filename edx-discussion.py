@@ -53,6 +53,9 @@ NEW_THREAD_COUNT = int(os.getenv("NEW_THREAD_COUNT", "1"))
 # AI author configuration
 AI_AUTHOR_NAME = os.getenv("AI_AUTHOR_NAME", "ibl_admin")
 
+# Course metadata caching
+_course_metadata = None
+
 
 # Mentor configuration
 TENANT = os.getenv("IBL_TENANT", "skillsai")
@@ -145,6 +148,48 @@ def is_within_hours(ts: str, hours: Optional[int]) -> bool:
         return delta.total_seconds() <= hours * 3600
     except Exception:
         return True  # fail-open
+
+def get_course_metadata(course_id: str) -> dict:
+    """Fetch course metadata to provide context for AI mentor."""
+    global _course_metadata
+
+    # Return cached metadata if available
+    if _course_metadata is not None:
+        return _course_metadata
+
+    try:
+        # Extract course key from course_id if needed
+        course_key = course_id
+        if not course_key.startswith("course-v1:"):
+            course_key = f"course-v1:{course_id}"
+
+        url = f"{EDX_BASE_URL}/api/ibl/v1/course_metadata"
+        params = {"course_key": course_key}
+
+        logging.info(f"Fetching course metadata for: {course_key}")
+        logging.info(f"GET {url} params={params}")
+
+        resp = SESSION.get(url, params=params, timeout=30)
+        logging.info(f"Response: {resp.status_code}")
+
+        if resp.status_code != 200:
+            logging.warning(f"Failed to get course metadata: {resp.status_code}")
+            return {}
+
+        metadata = resp.json()
+
+        # Log the course metadata
+        logging.info("=== Course Metadata Response ===")
+        logging.info(f"Course Metadata: {json.dumps(metadata, indent=2)}")
+
+        # Cache the metadata
+        _course_metadata = metadata
+
+        return metadata
+
+    except Exception as e:
+        logging.error(f"Error fetching course metadata: {str(e)}")
+        return {}
 
 def has_ai_already_replied(thread_id: str) -> bool:
     """Check if the AI has already replied to this thread by looking at the latest comment."""
@@ -275,15 +320,36 @@ async def generate_llm_response_for_discussion(thread_data: dict) -> dict:
     logging.info(f"Comment Count: {comment_count}")
     logging.info(f"Thread Body: {body}")
 
+    # Get course metadata for better context
+    course_metadata = get_course_metadata(COURSE_ID)
+
+    # Extract relevant course information
+    course_title = course_metadata.get("display_name", "Unknown Course")
+    course_overview = course_metadata.get("overview", "")
+    course_description = course_metadata.get("description", "")
+    course_short_desc = course_metadata.get("short_description", "")
+
+    # Clean up HTML from overview for better AI processing
+    import re
+    if course_overview:
+        # Remove HTML tags but keep content
+        course_overview = re.sub(r'<[^>]+>', ' ', course_overview)
+        course_overview = re.sub(r'\s+', ' ', course_overview).strip()
+
     # Create comprehensive context for the AI
-    discussion_prompt = f"""Discussion Thread Context:
+    discussion_prompt = f"""Course Context:
+Course Title: {course_title}
+Course Description: {course_description or course_short_desc}
+Course Overview: {course_overview[:500] if course_overview else "No overview available"}
+
+Discussion Thread Context:
 Title: {title}
 Author: {author}
 Created: {created_at}
 Existing Comments: {comment_count}
 Content: {body}
 
-Please provide a thoughtful response to this discussion thread as a mentor."""
+As a mentor for this course, please provide a thoughtful and helpful response to this discussion thread. Use your knowledge of the course content and context to provide relevant guidance."""
 
     logging.info(f"Combined Prompt: {discussion_prompt}")
 
