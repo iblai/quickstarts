@@ -53,6 +53,11 @@ NEW_THREAD_COUNT = int(os.getenv("NEW_THREAD_COUNT", "1"))
 # AI author configuration
 AI_AUTHOR_NAME = os.getenv("AI_AUTHOR_NAME", "iblai")
 
+# Loop configuration
+LOOP_INTERVAL_SECONDS = int(os.getenv("LOOP_INTERVAL_SECONDS", "30"))
+MAX_RUNTIME_HOURS = int(os.getenv("MAX_RUNTIME_HOURS", "24"))  # Run for max 24 hours by default
+MAX_RUNTIME_SECONDS = MAX_RUNTIME_HOURS * 3600
+
 # Course metadata caching
 _course_metadata = None
 
@@ -527,100 +532,151 @@ async def create_thread(course_id: str, title: str, body: str, topic_id: str = "
     return resp.json()
 
 # ---------- Main Logic ----------
+async def process_discussion_threads():
+    """Process discussion threads once - check for new threads and respond."""
+    logging.info("Fetching latest discussion threads to reply to...")
+
+    threads_checked = 0
+    threads_replied = 0
+
+    # Process existing threads
+    for thread in list_threads(COURSE_ID):
+        threads_checked += 1
+
+        if threads_checked > MAX_THREADS_TO_REPLY:
+            break
+
+        thread_id = thread.get("id")
+        title = thread.get("title", "Unknown")
+
+        # Check if AI has already replied to this thread
+        if has_ai_already_replied(thread_id):
+            logging.info(f"Skipping thread {title} ({thread_id}) - AI has already replied")
+            continue
+
+        logging.info(f"Generating AI response for thread: {title}")
+
+        try:
+            # Generate AI response for this thread
+            response = await generate_llm_response_for_discussion(thread)
+            ai_reply = response.get("body", response.get("content", "Thank you for sharing this discussion. I appreciate your contribution to our community dialogue."))
+
+            logging.info(f"AI Generated Reply: {ai_reply}")
+
+            # Post the AI response
+            post_comment(thread_id, ai_reply)
+            threads_replied += 1
+
+            logging.info(f"Replied with AI response to thread: {title} ({thread_id})")
+
+        except Exception as e:
+            logging.error(f"Failed to generate AI response for thread {title}: {str(e)}")
+            # Post a fallback response
+            fallback_message = "Thank you for sharing this discussion. I appreciate your contribution to our community dialogue."
+            post_comment(thread_id, fallback_message)
+            threads_replied += 1
+            logging.info(f"Replied with fallback message to thread: {title} ({thread_id})")
+
+        # Small delay between posts to avoid rate limiting
+        await asyncio.sleep(POST_SLEEP_SECONDS)
+
+    logging.info(f"Checked threads: {threads_checked}")
+    logging.info(f"Replied to threads: {threads_replied}")
+    return threads_checked, threads_replied
+
+async def create_new_threads():
+    """Create new threads if enabled."""
+    if not CREATE_NEW_THREADS:
+        return 0
+
+    logging.info(f"Creating {NEW_THREAD_COUNT} new discussion threads...")
+    threads_created = 0
+
+    for i in range(NEW_THREAD_COUNT):
+        try:
+            # Add a timestamp to make titles unique
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            title = f"{NEW_THREAD_TITLE} - {timestamp}"
+            body = f"{NEW_THREAD_BODY} - Created at {timestamp}"
+
+            result = await create_thread(
+                course_id=COURSE_ID,
+                title=title,
+                body=body,
+                topic_id=NEW_THREAD_TOPIC_ID,
+                thread_type=NEW_THREAD_TYPE
+            )
+            threads_created += 1
+            thread_id = result.get("id", "unknown")
+            logging.info(f"Created new thread: {title} (ID: {thread_id})")
+        except Exception as e:
+            logging.error(f"Failed to create thread: {str(e)}")
+
+        await asyncio.sleep(POST_SLEEP_SECONDS)
+
+    return threads_created
+
 async def main():
+    """Main function with continuous monitoring loop."""
+    import time
+
     if not OAUTH2_TOKEN or OAUTH2_TOKEN.startswith("<"):
         raise SystemExit("Please set EDX_OAUTH2_TOKEN to a valid OAuth2 bearer token.")
 
     if not COURSE_ID:
         raise SystemExit("Please set EDX_COURSE_ID to a valid course ID.")
 
-    total_replied = 0
-    total_created = 0
+    start_time = time.time()
+    total_operations = 0
 
-    # Create new threads if requested
+    logging.info(f"Starting discussion monitor...")
+    logging.info(f"Loop interval: {LOOP_INTERVAL_SECONDS} seconds")
+    logging.info(f"Max runtime: {MAX_RUNTIME_HOURS} hours")
+    logging.info(f"Course ID: {COURSE_ID}")
+    logging.info(f"AI Author: {AI_AUTHOR_NAME}")
+
+    # Create new threads once at startup if enabled
     if CREATE_NEW_THREADS:
-        logging.info(f"Creating {NEW_THREAD_COUNT} new discussion threads...")
-        for i in range(NEW_THREAD_COUNT):
-            try:
-                # Add a timestamp to make titles unique
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                title = f"{NEW_THREAD_TITLE} - {timestamp}"
-                body = f"{NEW_THREAD_BODY} - Created at {timestamp}"
+        threads_created = await create_new_threads()
+        total_operations += threads_created
+        logging.info(f"Created {threads_created} new threads at startup")
 
-                result = await create_thread(
-                    course_id=COURSE_ID,
-                    title=title,
-                    body=body,
-                    topic_id=NEW_THREAD_TOPIC_ID,
-                    thread_type=NEW_THREAD_TYPE
-                )
-                total_created += 1
-                thread_id = result.get("id", "unknown")
-                logging.info(f"Created new thread: {title} (ID: {thread_id})")
-            except Exception as e:
-                logging.error(f"Failed to create thread: {str(e)}")
+    loop_count = 0
 
-            time.sleep(POST_SLEEP_SECONDS)
+    try:
+        while True:
+            loop_count += 1
+            current_time = time.time()
+            elapsed_time = current_time - start_time
 
-    # Reply to existing threads if configured
-    if MAX_THREADS_TO_REPLY > 0:
-        logging.info("Fetching latest discussion threads to reply to...")
-        replied = 0
-        checked = 0
-
-        for thread in list_threads(course_id=COURSE_ID):
-            checked += 1
-            thread_id = thread.get("id") or thread.get("thread_id")
-            title = thread.get("title", "")
-            last_activity_at = thread.get("last_activity_at") or thread.get("updated_at") or thread.get("created_at")
-            closed = thread.get("closed", False)
-
-            if ONLY_WITHIN_HOURS and last_activity_at and not is_within_hours(last_activity_at, ONLY_WITHIN_HOURS):
-                continue
-            if closed or not thread_id:
-                logging.info(f"Skipping thread: {title} ({thread_id})")
-                continue
-
-            # Check if AI has already replied to this thread
-            if has_ai_already_replied(thread_id):
-                logging.info(f"Skipping thread {title} ({thread_id}) - AI has already replied")
-                continue
-
-            try:
-                # Generate AI response for the thread using full thread data
-                logging.info(f"Generating AI response for thread: {title}")
-                ai_response = await generate_llm_response_for_discussion(thread)
-
-                # Extract AI-generated content for the reply
-                ai_reply = ai_response.get("body", ai_response.get("content", "Thank you for sharing this discussion!"))
-                logging.info(f"AI Generated Reply: {ai_reply}")
-
-                _ = post_comment(thread_id, ai_reply)
-                replied += 1
-                logging.info(f"Replied with AI response to thread: {title} ({thread_id})")
-            except Exception as e:
-                logging.error(f"Failed to generate AI response for thread {title}: {str(e)}")
-                # Fallback to simple reply if AI fails
-                try:
-                    _ = post_comment(thread_id, "Thank you for sharing this discussion!")
-                    replied += 1
-                    logging.info(f"Replied with fallback message to thread: {title} ({thread_id})")
-                except Exception as fallback_error:
-                    logging.error(f"Failed to post fallback reply: {str(fallback_error)}")
-
-            time.sleep(POST_SLEEP_SECONDS)
-            if MAX_THREADS_TO_REPLY and replied >= MAX_THREADS_TO_REPLY:
+            # Check if we've exceeded max runtime
+            if elapsed_time >= MAX_RUNTIME_SECONDS:
+                logging.info(f"Reached maximum runtime of {MAX_RUNTIME_HOURS} hours. Stopping.")
                 break
 
-        total_replied = replied
-        logging.info(f"Checked threads: {checked}")
-        logging.info(f"Replied to threads: {total_replied}")
+            logging.info(f"=== Loop #{loop_count} (Elapsed: {elapsed_time/3600:.1f}h) ===")
 
-    # Summary
-    logging.info(f"Summary:")
-    logging.info(f"  Created new threads: {total_created}")
-    logging.info(f"  Replied to existing threads: {total_replied}")
-    logging.info(f"  Total operations: {total_created + total_replied}")
+            # Process discussion threads
+            threads_checked, threads_replied = await process_discussion_threads()
+            total_operations += threads_replied
+
+            logging.info(f"Loop #{loop_count} Summary:")
+            logging.info(f"  Checked threads: {threads_checked}")
+            logging.info(f"  Replied to threads: {threads_replied}")
+            logging.info(f"  Total operations so far: {total_operations}")
+
+            # Wait for next iteration
+            logging.info(f"Waiting {LOOP_INTERVAL_SECONDS} seconds before next check...")
+            await asyncio.sleep(LOOP_INTERVAL_SECONDS)
+
+    except KeyboardInterrupt:
+        logging.info("Received interrupt signal. Stopping gracefully...")
+    except Exception as e:
+        logging.error(f"Unexpected error in main loop: {str(e)}")
+    finally:
+        total_runtime = time.time() - start_time
+        logging.info(f"Discussion monitor stopped after {total_runtime/3600:.1f} hours")
+        logging.info(f"Total operations completed: {total_operations}")
 
 if __name__ == "__main__":
     asyncio.run(main())
