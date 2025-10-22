@@ -292,43 +292,56 @@ def has_ai_already_replied(thread_id: str) -> bool:
 async def capture_ai_response(prompt: str, session_id: str, mentor: str, tenant: str, username: str, api_key: str) -> str:
     """Capture AI response from websocket and return the content."""
     try:
-        # Use the same websocket approach as the API but capture the response
-        ws_url = f"{api.ASGI_URL}/ws/chat/{session_id}"
-        headers = {"Authorization": f"Bearer {api_key}"}
+        # Use the exact same approach as api.chat_with_websocket
+        data = {
+            "flow": {
+                "name": mentor,
+                "tenant": tenant,
+                "username": username,
+                "pathway": mentor,
+            },
+            "session_id": session_id,
+            "token": api_key,
+            "prompt": prompt,
+        }
 
-        async with websockets.connect(ws_url, extra_headers=headers) as ws:
-            # Send the prompt
-            await ws.send(json.dumps({"prompt": prompt}))
+        ws = await websockets.connect(f"{api.ASGI_URL}/ws/langflow/")
+        logging.info("Connected to Mentor")
 
-            # Collect the response
-            response_parts = []
-            eos = False
+        await ws.send(json.dumps(data))
 
-            while not eos:
-                try:
-                    data = await asyncio.wait_for(ws.recv(), timeout=30)
-                    msg = json.loads(data)
+        # Collect the response
+        response_parts = []
+        eos = False
 
-                    if "error" in msg:
-                        logging.error(f"Error from server: {msg['error']}")
-                        return f"Error: {msg['error']}"
+        while not eos:
+            try:
+                data = await asyncio.wait_for(ws.recv(), timeout=10)
+                msg = json.loads(data)
 
-                    if "data" in msg:
-                        response_parts.append(msg["data"])
-                        logging.info(f"Received AI token: {msg['data']}")
+                if "error" in msg:
+                    logging.error(f"Error from server: {msg['error']}")
+                    await ws.close()
+                    return f"Error: {msg['error']}"
 
-                    if msg.get("eos"):
-                        eos = True
-                        logging.info("AI response completed (EOS received)")
+                if "data" in msg:
+                    response_parts.append(msg["data"])
+                    logging.info(f"Received AI token: {msg['data']}")
 
-                except asyncio.TimeoutError:
-                    logging.warning("Timeout while waiting for response")
-                    break
+                if msg.get("eos"):
+                    eos = True
+                    logging.info("AI response completed (EOS received)")
 
-            # Join all response parts
-            full_response = "".join(response_parts)
-            logging.info(f"Captured Full AI Response: {full_response}")
-            return full_response
+            except asyncio.TimeoutError:
+                logging.warning("Timeout while waiting for response")
+                break
+
+        await ws.close()
+
+        # Join all response parts
+        full_response = "".join(response_parts)
+        logging.info(f"Captured Full AI Response: {full_response}")
+        return full_response
 
     except Exception as e:
         logging.error(f"Error capturing AI response: {str(e)}")
@@ -434,10 +447,9 @@ As a mentor for this course, please provide a thoughtful and helpful response to
     # Use the API to chat with mentor (following quickstart pattern exactly)
     logging.info("Sending request to AI mentor...")
 
-    # Use the original API function that handles authentication properly
+    # Use our fixed capture_ai_response function that uses the correct websocket approach
     try:
-        # Use the original api.chat_with_websocket function
-        await api.chat_with_websocket(
+        ai_content = await capture_ai_response(
             prompt=discussion_prompt,
             session_id=session_id,
             mentor=mentor_unique_id,
@@ -445,8 +457,6 @@ As a mentor for this course, please provide a thoughtful and helpful response to
             username=USERNAME,
             api_key=PLATFORM_API_KEY,
         )
-        # Since api.chat_with_websocket prints but doesn't return, we'll create a meaningful response
-        ai_content = f"Thank you for your question about the course. Based on the course content and our discussion, I'd be happy to help clarify any concepts or provide additional guidance. Please feel free to ask more specific questions about the topics we've covered."
 
     except Exception as e:
         logging.error(f"Error with AI mentor: {str(e)}")
