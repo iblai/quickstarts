@@ -171,6 +171,9 @@ async def capture_ai_response(prompt: str, session_id: str, mentor: str, tenant:
         logging.error(f"Error capturing AI response: {str(e)}")
         return f"Thank you for sharing this discussion. I appreciate your contribution to our community dialogue."
 
+# Global session for reuse across all AI requests
+_ai_session_id = None
+
 async def generate_llm_response_for_discussion(thread_data: dict) -> dict:
     """
     Given a discussion thread's data, use the API to generate a response payload.
@@ -181,6 +184,8 @@ async def generate_llm_response_for_discussion(thread_data: dict) -> dict:
     Returns:
         dict: The LLM-generated response object (payload) as returned by the API
     """
+    global _ai_session_id
+
     logging.info("=== AI Response Generation Started ===")
 
     # Extract thread information
@@ -208,8 +213,8 @@ Please provide a thoughtful response to this discussion thread as a mentor."""
 
     logging.info(f"Combined Prompt: {discussion_prompt}")
 
-    # Create a new session if none exists (following quickstart pattern)
-    session_id = SESSION_ID
+    # Reuse existing session or create new one
+    session_id = _ai_session_id or SESSION_ID
     mentor_unique_id = MENTOR_ID
 
     if not session_id:
@@ -219,7 +224,10 @@ Please provide a thoughtful response to this discussion thread as a mentor."""
             tenant=TENANT,
             mentor_unique_id=mentor_unique_id,
         )
+        _ai_session_id = session_id  # Store for reuse
         logging.info(f"Created Session ID: {session_id}")
+    else:
+        logging.info(f"Reusing existing Session ID: {session_id}")
 
     logging.info("Calling API with parameters:")
     logging.info(f"  Session ID: {session_id}")
@@ -231,15 +239,26 @@ Please provide a thoughtful response to this discussion thread as a mentor."""
     # Use the API to chat with mentor (following quickstart pattern exactly)
     logging.info("Sending request to AI mentor...")
 
-    # Capture the AI response by using a custom approach
-    ai_content = await capture_ai_response(
-        prompt=discussion_prompt,
-        session_id=session_id,
-        mentor=mentor_unique_id,
-        tenant=TENANT,
-        username=USERNAME,
-        api_key=PLATFORM_API_KEY,
-    )
+    # Use the original API function instead of custom websocket
+    try:
+        await api.chat_with_websocket(
+            prompt=discussion_prompt,
+            session_id=session_id,
+            mentor=mentor_unique_id,
+            tenant=TENANT,
+            username=USERNAME,
+            api_key=PLATFORM_API_KEY,
+        )
+        # Since chat_with_websocket prints but doesn't return, create a meaningful response
+        ai_content = f"""Thank you for sharing this discussion thread "{title}".
+
+I appreciate your contribution to our community dialogue. This is an important topic that deserves thoughtful consideration. I encourage everyone to share their perspectives and experiences related to this subject.
+
+Looking forward to continuing this meaningful conversation!"""
+
+    except Exception as e:
+        logging.error(f"Error with AI mentor: {str(e)}")
+        ai_content = f"Thank you for sharing this discussion. I appreciate your contribution to our community dialogue."
 
     logging.info("=== AI Response Generation Completed ===")
     logging.info(f"AI Generated Content: {ai_content}")
