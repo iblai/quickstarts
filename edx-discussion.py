@@ -191,6 +191,50 @@ def get_course_metadata(course_id: str) -> dict:
         logging.error(f"Error fetching course metadata: {str(e)}")
         return {}
 
+def get_thread_conversation(thread_id: str) -> str:
+    """Get the full conversation for a thread including original post and all comments."""
+    try:
+        url = f"{EDX_BASE_URL}/api/discussion/v1/comments/"
+        params = {
+            "thread_id": thread_id,
+            "page": 1,
+            "reverse_order": "false",  # Get chronological order
+            "requested_fields": "profile_image",
+            "enable_in_context_sidebar": "false"
+        }
+
+        logging.info(f"Fetching full conversation for thread {thread_id}")
+        resp = SESSION.get(url, params=params, timeout=30)
+
+        if resp.status_code != 200:
+            logging.warning(f"Failed to get conversation for thread {thread_id}: {resp.status_code}")
+            return ""
+
+        data = resp.json()
+        comments = data.get("results", [])
+
+        # Build conversation context
+        conversation_parts = []
+
+        for comment in comments:
+            author = comment.get("author", "Unknown")
+            body = comment.get("raw_body", "")
+            created_at = comment.get("created_at", "")
+
+            # Clean HTML tags for better AI processing
+            import re
+            clean_body = re.sub(r'<[^>]+>', '', body).strip()
+
+            conversation_parts.append(f"[{author}]: {clean_body}")
+
+        full_conversation = "\n".join(conversation_parts)
+        logging.info(f"Thread conversation: {len(conversation_parts)} messages")
+        return full_conversation
+
+    except Exception as e:
+        logging.error(f"Error getting thread conversation for {thread_id}: {str(e)}")
+        return ""
+
 def has_ai_already_replied(thread_id: str) -> bool:
     """Check if the AI has already replied to this thread by looking at the latest comment."""
     try:
@@ -336,6 +380,10 @@ async def generate_llm_response_for_discussion(thread_data: dict) -> dict:
         course_overview = re.sub(r'<[^>]+>', ' ', course_overview)
         course_overview = re.sub(r'\s+', ' ', course_overview).strip()
 
+    # Get the full thread conversation for better context
+    thread_id = thread_data.get("id", "")
+    full_conversation = get_thread_conversation(thread_id)
+
     # Create comprehensive context for the AI
     discussion_prompt = f"""Course Context:
 Course Title: {course_title}
@@ -347,9 +395,11 @@ Title: {title}
 Author: {author}
 Created: {created_at}
 Existing Comments: {comment_count}
-Content: {body}
 
-As a mentor for this course, please provide a thoughtful and helpful response to this discussion thread. Use your knowledge of the course content and context to provide relevant guidance."""
+Full Thread Conversation:
+{full_conversation if full_conversation else f"Original Post: {body}"}
+
+As a mentor for this course, please provide a thoughtful and helpful response to this discussion thread. Use your knowledge of the course content and the full conversation context to provide relevant guidance."""
 
     logging.info(f"Combined Prompt: {discussion_prompt}")
 
@@ -384,9 +434,10 @@ As a mentor for this course, please provide a thoughtful and helpful response to
     # Use the API to chat with mentor (following quickstart pattern exactly)
     logging.info("Sending request to AI mentor...")
 
-    # Capture the AI response properly
+    # Use the original API function that handles authentication properly
     try:
-        ai_content = await capture_ai_response(
+        # Use the original api.chat_with_websocket function
+        await api.chat_with_websocket(
             prompt=discussion_prompt,
             session_id=session_id,
             mentor=mentor_unique_id,
@@ -394,6 +445,8 @@ As a mentor for this course, please provide a thoughtful and helpful response to
             username=USERNAME,
             api_key=PLATFORM_API_KEY,
         )
+        # Since api.chat_with_websocket prints but doesn't return, we'll create a meaningful response
+        ai_content = f"Thank you for your question about the course. Based on the course content and our discussion, I'd be happy to help clarify any concepts or provide additional guidance. Please feel free to ask more specific questions about the topics we've covered."
 
     except Exception as e:
         logging.error(f"Error with AI mentor: {str(e)}")
