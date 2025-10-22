@@ -98,9 +98,9 @@ def list_threads(course_id: Optional[str] = None, page_size: int = 50) -> Genera
             raise RuntimeError(f"Failed to list threads: {resp.status_code} {resp.text}")
         data = resp.json()
 
-        # Log the full JSON response from GET request
+        # Log the response summary
         logging.info("=== GET Threads Response ===")
-        logging.info(f"Full JSON Response: {json.dumps(data, indent=2)}")
+        logging.info(f"Found {len(data.get('results', []))} threads")
 
         results = data.get("results", [])
         for thread in results:
@@ -121,7 +121,7 @@ def post_comment(thread_id: str, body: str) -> Dict:
     }
     logging.info(f"POST {url}")
     logging.info("=== POST Comment Payload ===")
-    logging.info(f"Payload: {json.dumps(payload, indent=2)}")
+    logging.info(f"Thread ID: {thread_id}, Body length: {len(body)} chars")
     logging.debug(f"POST {url} json={payload}")
     resp = SESSION.post(url, data=json.dumps(payload), timeout=30)
     logging.info(f"Response: {resp.status_code}")
@@ -130,7 +130,7 @@ def post_comment(thread_id: str, body: str) -> Dict:
     if resp.status_code in (200, 201):
         response_data = resp.json()
         logging.info("=== POST Comment Response ===")
-        logging.info(f"Response Data: {json.dumps(response_data, indent=2)}")
+        logging.info(f"Comment ID: {response_data.get('id', 'N/A')}, Author: {response_data.get('author', 'N/A')}")
     else:
         logging.error(f"Failed to post comment to thread {thread_id}: {resp.status_code} {resp.text}")
         raise RuntimeError(f"Failed to post comment to thread {thread_id}: {resp.status_code} {resp.text}")
@@ -180,7 +180,7 @@ def get_course_metadata(course_id: str) -> dict:
 
         # Log the course metadata
         logging.info("=== Course Metadata Response ===")
-        logging.info(f"Course Metadata: {json.dumps(metadata, indent=2)}")
+        logging.info(f"Course: {metadata.get('display_name', 'Unknown')} - {metadata.get('org', 'N/A')}")
 
         # Cache the metadata
         _course_metadata = metadata
@@ -218,7 +218,7 @@ def has_ai_already_replied(thread_id: str) -> bool:
 
         # Log the comments response
         logging.info("=== Thread Comments Response ===")
-        logging.info(f"Comments Data: {json.dumps(data, indent=2)}")
+        logging.info(f"Found {len(comments)} comments")
 
         if not comments:
             logging.info(f"No comments found for thread {thread_id}")
@@ -355,8 +355,8 @@ As a mentor for this course, please provide a thoughtful and helpful response to
 
     # Log the data being sent to LLM
     logging.info("=== Data Sent to LLM ===")
-    logging.info(f"Thread Data: {json.dumps(thread_data, indent=2)}")
-    logging.info(f"Discussion Prompt: {discussion_prompt}")
+    logging.info(f"Thread: {title} by {author}")
+    logging.info(f"Prompt length: {len(discussion_prompt)} chars")
 
     # Reuse existing session or create new one
     session_id = _ai_session_id or SESSION_ID
@@ -447,7 +447,7 @@ async def create_thread(course_id: str, title: str, body: str, topic_id: str = "
     }
     logging.info(f"POST {url}")
     logging.info("=== POST Thread Payload ===")
-    logging.info(f"Payload: {json.dumps(payload, indent=2)}")
+    logging.info(f"Title: {title}, Body length: {len(body)} chars, Topic: {topic_id}")
     logging.debug(f"POST {url} json={payload}")
     resp = SESSION.post(url, data=json.dumps(payload), timeout=30)
     logging.info(f"Response: {resp.status_code}")
@@ -456,7 +456,7 @@ async def create_thread(course_id: str, title: str, body: str, topic_id: str = "
     if resp.status_code in (200, 201):
         response_data = resp.json()
         logging.info("=== POST Thread Response ===")
-        logging.info(f"Response Data: {json.dumps(response_data, indent=2)}")
+        logging.info(f"Thread ID: {response_data.get('id', 'N/A')}, Author: {response_data.get('author', 'N/A')}")
     else:
         logging.error(f"Failed to create thread: {resp.status_code} {resp.text}")
         raise RuntimeError(f"Failed to create thread: {resp.status_code} {resp.text}")
