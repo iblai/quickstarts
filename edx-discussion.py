@@ -145,7 +145,7 @@ async def capture_ai_response(prompt: str, session_id: str, mentor: str, tenant:
 
             while not eos:
                 try:
-                    data = await asyncio.wait_for(ws.recv(), timeout=10)
+                    data = await asyncio.wait_for(ws.recv(), timeout=30)
                     msg = json.loads(data)
 
                     if "error" in msg:
@@ -154,9 +154,11 @@ async def capture_ai_response(prompt: str, session_id: str, mentor: str, tenant:
 
                     if "data" in msg:
                         response_parts.append(msg["data"])
+                        logging.info(f"Received AI token: {msg['data']}")
 
                     if msg.get("eos"):
                         eos = True
+                        logging.info("AI response completed (EOS received)")
 
                 except asyncio.TimeoutError:
                     logging.warning("Timeout while waiting for response")
@@ -164,7 +166,7 @@ async def capture_ai_response(prompt: str, session_id: str, mentor: str, tenant:
 
             # Join all response parts
             full_response = "".join(response_parts)
-            logging.info(f"Captured AI Response: {full_response}")
+            logging.info(f"Captured Full AI Response: {full_response}")
             return full_response
 
     except Exception as e:
@@ -239,9 +241,9 @@ Please provide a thoughtful response to this discussion thread as a mentor."""
     # Use the API to chat with mentor (following quickstart pattern exactly)
     logging.info("Sending request to AI mentor...")
 
-    # Use the original API function instead of custom websocket
+    # Capture the AI response properly
     try:
-        await api.chat_with_websocket(
+        ai_content = await capture_ai_response(
             prompt=discussion_prompt,
             session_id=session_id,
             mentor=mentor_unique_id,
@@ -249,12 +251,6 @@ Please provide a thoughtful response to this discussion thread as a mentor."""
             username=USERNAME,
             api_key=PLATFORM_API_KEY,
         )
-        # Since chat_with_websocket prints but doesn't return, create a meaningful response
-        ai_content = f"""Thank you for sharing this discussion thread "{title}".
-
-I appreciate your contribution to our community dialogue. This is an important topic that deserves thoughtful consideration. I encourage everyone to share their perspectives and experiences related to this subject.
-
-Looking forward to continuing this meaningful conversation!"""
 
     except Exception as e:
         logging.error(f"Error with AI mentor: {str(e)}")
