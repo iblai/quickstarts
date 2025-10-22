@@ -36,8 +36,8 @@ import sys
 
 # ---------- Configuration ----------
 EDX_BASE_URL = os.getenv("EDX_BASE_URL", "https://learn.iblai.org")
-OAUTH2_TOKEN = os.getenv("EDX_OAUTH2_TOKEN", "jSyCAMrxoXWLTso0mmPgeSkkx5roCi")
-COURSE_ID = os.getenv("EDX_COURSE_ID", "course-v1:main+NB2025+2025_T1")   # e.g. "course-v1:main+NB2025+2025_T1"
+OAUTH2_TOKEN = os.getenv("EDX_OAUTH2_TOKEN", "GWfark9czBwXFdsWpa9EB4edwr6Wht")
+COURSE_ID = os.getenv("EDX_COURSE_ID", "course-v1:main+BN101+2024")   # e.g. "course-v1:main+NB2025+2025_T1"
 MAX_THREADS_TO_REPLY = int(os.getenv("MAX_THREADS_TO_REPLY", "20"))
 ONLY_WITHIN_HOURS = int(os.getenv("ONLY_WITHIN_HOURS", "72"))
 POST_SLEEP_SECONDS = float(os.getenv("POST_SLEEP_SECONDS", "0.25"))
@@ -51,7 +51,7 @@ NEW_THREAD_TYPE = os.getenv("NEW_THREAD_TYPE", "discussion")
 NEW_THREAD_COUNT = int(os.getenv("NEW_THREAD_COUNT", "1"))
 
 # AI author configuration
-AI_AUTHOR_NAME = os.getenv("AI_AUTHOR_NAME", "ibl_admin")
+AI_AUTHOR_NAME = os.getenv("AI_AUTHOR_NAME", "iblai")
 
 # Course metadata caching
 _course_metadata = None
@@ -340,12 +340,6 @@ async def capture_ai_response(prompt: str, session_id: str, mentor: str, tenant:
 
         # Join all response parts
         full_response = "".join(response_parts)
-
-        # Clean up the response - remove placeholder names and signatures
-        full_response = full_response.replace("[Your Name]", "")
-        full_response = full_response.replace("Best,", "").strip()
-        full_response = full_response.replace("Best,", "").strip()  # Remove any remaining instances
-
         logging.info(f"Captured Full AI Response: {full_response}")
         return full_response
 
@@ -418,7 +412,7 @@ Existing Comments: {comment_count}
 Full Thread Conversation:
 {full_conversation if full_conversation else f"Original Post: {body}"}
 
-As a mentor for this course, please provide a thoughtful and helpful response to this discussion thread. Use your knowledge of the course content and the full conversation context to provide relevant guidance."""
+As a mentor for this course, please provide a thoughtful and helpful response to this discussion thread. Use your knowledge of the course content and the full conversation context to provide relevant guidance. Do not include any signatures, names, or closing phrases like "Best regards" or "[Your Name]" - just provide the response content directly. And keep the response short and to the point."""
 
     logging.info(f"Combined Prompt: {discussion_prompt}")
 
@@ -456,13 +450,13 @@ As a mentor for this course, please provide a thoughtful and helpful response to
     # Use our fixed capture_ai_response function that uses the correct websocket approach
     try:
         ai_content = await capture_ai_response(
-            prompt=discussion_prompt,
+        prompt=discussion_prompt,
             session_id=session_id,
             mentor=mentor_unique_id,
-            tenant=TENANT,
-            username=USERNAME,
-            api_key=PLATFORM_API_KEY,
-        )
+        tenant=TENANT,
+        username=USERNAME,
+        api_key=PLATFORM_API_KEY,
+    )
 
     except Exception as e:
         logging.error(f"Error with AI mentor: {str(e)}")
