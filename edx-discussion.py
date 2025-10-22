@@ -1,0 +1,299 @@
+#!/usr/bin/env python3
+"""
+Reply 'hey' to the latest edX discussion threads and/or create new discussion threads.
+
+Prereqs:
+- pip install requests python-dateutil
+
+Configurable via environment variables:
+- EDX_BASE_URL: LMS base URL (no trailing slash)
+- EDX_OAUTH2_TOKEN: Bearer token for admin API access
+- EDX_COURSE_ID: Optional course ID to scope threads
+- MAX_THREADS_TO_REPLY: How many latest threads to reply to (default 20)
+- ONLY_WITHIN_HOURS: Only threads active within last N hours (default 72)
+- POST_SLEEP_SECONDS: Delay between posts to avoid hammering the API (default 0.25)
+- CREATE_NEW_THREADS: Whether to create new discussion threads (default false)
+- NEW_THREAD_TITLE: Title for new threads (default "Sample Discussion")
+- NEW_THREAD_BODY: Body content for new threads (default "Sample discussion content")
+- NEW_THREAD_TOPIC_ID: Topic ID for new threads (default "course")
+- NEW_THREAD_TYPE: Type of new threads (default "discussion")
+- NEW_THREAD_COUNT: Number of new threads to create (default 1)
+"""
+
+import os
+import time
+import json
+import logging
+from typing import Generator, Dict, Optional
+from datetime import datetime, timezone
+import requests
+from dateutil import parser as dateparser
+import asyncio
+import api
+
+
+# ---------- Configuration ----------
+EDX_BASE_URL = os.getenv("EDX_BASE_URL", "https://learn.iblai.org")
+OAUTH2_TOKEN = os.getenv("EDX_OAUTH2_TOKEN", "jSyCAMrxoXWLTso0mmPgeSkkx5roCi")
+COURSE_ID = os.getenv("EDX_COURSE_ID", "course-v1:main+NB2025+2025_T1")   # e.g. "course-v1:main+NB2025+2025_T1"
+MAX_THREADS_TO_REPLY = int(os.getenv("MAX_THREADS_TO_REPLY", "20"))
+ONLY_WITHIN_HOURS = int(os.getenv("ONLY_WITHIN_HOURS", "72"))
+POST_SLEEP_SECONDS = float(os.getenv("POST_SLEEP_SECONDS", "0.25"))
+
+# New thread creation configuration
+CREATE_NEW_THREADS = os.getenv("CREATE_NEW_THREADS", "false").lower() == "true"
+NEW_THREAD_TITLE = os.getenv("NEW_THREAD_TITLE", "Sample Discussion")
+NEW_THREAD_BODY = os.getenv("NEW_THREAD_BODY", "Sample discussion content")
+NEW_THREAD_TOPIC_ID = os.getenv("NEW_THREAD_TOPIC_ID", "course")
+NEW_THREAD_TYPE = os.getenv("NEW_THREAD_TYPE", "discussion")
+NEW_THREAD_COUNT = int(os.getenv("NEW_THREAD_COUNT", "1"))
+
+
+# Mentor configuration
+TENANT = os.getenv("IBL_TENANT", "skillsai")
+USERNAME = os.getenv("IBL_USERNAME", "gipsbrian")
+PLATFORM_API_KEY = os.getenv("IBL_PLATFORM_API_KEY", "11fce3794bb72dbcc57c58e73b8ba9e36345c645dd87afea953ca19978452e54")
+MENTOR_ID = os.getenv("IBL_MENTOR_ID", "mentorAI")
+SESSION_ID = os.getenv("IBL_SESSION_ID")
+
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+# ---------- API Session ----------
+SESSION = requests.Session()
+SESSION.headers.update({
+    "Authorization": f"Bearer {OAUTH2_TOKEN}",
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+})
+
+# ---------- Helper Functions ----------
+def list_threads(course_id: Optional[str] = None, page_size: int = 50) -> Generator[Dict, None, None]:
+    """Yield discussion threads with pagination, most recent first."""
+    url = f"{EDX_BASE_URL}/api/discussion/v1/threads/"
+    params = {
+        "page_size": page_size,
+        "order_by": "last_activity_at",
+        "order_direction": "desc",
+    }
+    if course_id:
+        params["course_id"] = course_id
+
+    while True:
+        # Build full URL for logging
+        full_url = f"{url}?" + "&".join([f"{k}={v}" for k, v in params.items()])
+        logging.info(f"GET {full_url}")
+        logging.debug(f"GET {url} params={params}")
+        resp = SESSION.get(url, params=params, timeout=30)
+        logging.info(f"Response: {resp.status_code}")
+        if resp.status_code != 200:
+            raise RuntimeError(f"Failed to list threads: {resp.status_code} {resp.text}")
+        data = resp.json()
+        results = data.get("results", [])
+        for thread in results:
+            yield thread
+        next_url = data.get("next")
+        if not next_url:
+            break
+        logging.info(f"Pagination: GET {next_url}")
+        url = next_url
+        params = {}
+
+def post_comment(thread_id: str, body: str) -> Dict:
+    """Post a top-level comment to a thread."""
+    url = f"{EDX_BASE_URL}/api/discussion/v1/comments/"
+    payload = {
+        "thread_id": thread_id,
+        "raw_body": body,
+    }
+    logging.info(f"POST {url}")
+    logging.debug(f"POST {url} json={payload}")
+    resp = SESSION.post(url, data=json.dumps(payload), timeout=30)
+    logging.info(f"Response: {resp.status_code}")
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(f"Failed to post comment to thread {thread_id}: {resp.status_code} {resp.text}")
+    return resp.json()
+
+def is_within_hours(ts: str, hours: Optional[int]) -> bool:
+    if hours is None:
+        return True
+    try:
+        dt = dateparser.parse(ts)
+        if not dt.tzinfo:
+            dt = dt.replace(tzinfo=timezone.utc)
+        delta = datetime.now(timezone.utc) - dt.astimezone(timezone.utc)
+        return delta.total_seconds() <= hours * 3600
+    except Exception:
+        return True  # fail-open
+
+async def generate_llm_response_for_discussion(title: str, body: str) -> dict:
+    """
+    Given a discussion thread's title and body, use the API to generate a response payload.
+
+    Args:
+        title (str): Title of the discussion thread
+        body (str): Raw body of the discussion thread
+
+    Returns:
+        dict: The LLM-generated response object (payload) as returned by the API
+    """
+    logging.info("=== AI Response Generation Started ===")
+    logging.info(f"Input Title: {title}")
+    logging.info(f"Input Body: {body}")
+
+    # Combine the title and body for context
+    discussion_prompt = f"Discussion Title: {title}\nDiscussion Body: {body}"
+    logging.info(f"Combined Prompt: {discussion_prompt}")
+
+    logging.info("Calling API with parameters:")
+    logging.info(f"  Session ID: {SESSION_ID}")
+    logging.info(f"  Mentor ID: {MENTOR_ID}")
+    logging.info(f"  Tenant: {TENANT}")
+    logging.info(f"  Username: {USERNAME}")
+    logging.info(f"  API Key: {PLATFORM_API_KEY[:10]}...")
+
+    # Use the API to chat with mentor
+    logging.info("Sending request to AI mentor...")
+    response = await api.chat_with_websocket(
+        prompt=discussion_prompt,
+        session_id=SESSION_ID,
+        mentor=MENTOR_ID,
+        tenant=TENANT,
+        username=USERNAME,
+        api_key=PLATFORM_API_KEY,
+    )
+
+    logging.info("=== AI Response Generation Completed ===")
+    logging.info(f"Raw AI Response: {json.dumps(response, indent=2)}")
+    return response
+
+
+
+async def create_thread(course_id: str, title: str, body: str, topic_id: str = "course", thread_type: str = "discussion") -> Dict:
+    """Create a new discussion thread."""
+    url = f"{EDX_BASE_URL}/api/discussion/v1/threads/"
+
+    # Generate AI response
+    logging.info("Generating AI response for discussion...")
+    response = await generate_llm_response_for_discussion(title, body)
+    logging.info(f"AI Response: {json.dumps(response, indent=2)}")
+
+    # Extract AI-generated content from response
+    ai_title = response.get("title", title)  # Use AI title or fallback to original
+    ai_body = response.get("body", response.get("content", body))  # Use AI body/content or fallback to original
+
+    logging.info(f"AI Generated Title: {ai_title}")
+    logging.info(f"AI Generated Body: {ai_body}")
+
+    payload = {
+        "course_id": course_id,
+        "topic_id": topic_id,
+        "type": thread_type,
+        "title": ai_title,
+        "raw_body": ai_body,
+        "following": True,
+        "anonymous": False,
+        "enable_in_context_sidebar": False
+    }
+    logging.info(f"POST {url}")
+    logging.info(f"Payload: {json.dumps(payload, indent=2)}")
+    logging.debug(f"POST {url} json={payload}")
+    resp = SESSION.post(url, data=json.dumps(payload), timeout=30)
+    logging.info(f"Response: {resp.status_code}")
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(f"Failed to create thread: {resp.status_code} {resp.text}")
+    return resp.json()
+
+# ---------- Main Logic ----------
+async def main():
+    if not OAUTH2_TOKEN or OAUTH2_TOKEN.startswith("<"):
+        raise SystemExit("Please set EDX_OAUTH2_TOKEN to a valid OAuth2 bearer token.")
+
+    if not COURSE_ID:
+        raise SystemExit("Please set EDX_COURSE_ID to a valid course ID.")
+
+    total_replied = 0
+    total_created = 0
+
+    # Create new threads if requested
+    if CREATE_NEW_THREADS:
+        logging.info(f"Creating {NEW_THREAD_COUNT} new discussion threads...")
+        for i in range(NEW_THREAD_COUNT):
+            try:
+                # Add a timestamp to make titles unique
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                title = f"{NEW_THREAD_TITLE} - {timestamp}"
+                body = f"{NEW_THREAD_BODY} - Created at {timestamp}"
+
+                result = await create_thread(
+                    course_id=COURSE_ID,
+                    title=title,
+                    body=body,
+                    topic_id=NEW_THREAD_TOPIC_ID,
+                    thread_type=NEW_THREAD_TYPE
+                )
+                total_created += 1
+                thread_id = result.get("id", "unknown")
+                logging.info(f"Created new thread: {title} (ID: {thread_id})")
+            except Exception as e:
+                logging.error(f"Failed to create thread: {str(e)}")
+
+            time.sleep(POST_SLEEP_SECONDS)
+
+    # Reply to existing threads if configured
+    if MAX_THREADS_TO_REPLY > 0:
+        logging.info("Fetching latest discussion threads to reply to...")
+        replied = 0
+        checked = 0
+
+        for thread in list_threads(course_id=COURSE_ID):
+            checked += 1
+            thread_id = thread.get("id") or thread.get("thread_id")
+            title = thread.get("title", "")
+            last_activity_at = thread.get("last_activity_at") or thread.get("updated_at") or thread.get("created_at")
+            closed = thread.get("closed", False)
+
+            if ONLY_WITHIN_HOURS and last_activity_at and not is_within_hours(last_activity_at, ONLY_WITHIN_HOURS):
+                continue
+            if closed or not thread_id:
+                logging.info(f"Skipping thread: {title} ({thread_id})")
+                continue
+
+            try:
+                # Generate AI response for the thread
+                logging.info(f"Generating AI response for thread: {title}")
+                ai_response = await generate_llm_response_for_discussion(title, thread.get("raw_body", ""))
+
+                # Extract AI-generated content for the reply
+                ai_reply = ai_response.get("body", ai_response.get("content", "Thank you for sharing this discussion!"))
+                logging.info(f"AI Generated Reply: {ai_reply}")
+
+                _ = post_comment(thread_id, ai_reply)
+                replied += 1
+                logging.info(f"Replied with AI response to thread: {title} ({thread_id})")
+            except Exception as e:
+                logging.error(f"Failed to generate AI response for thread {title}: {str(e)}")
+                # Fallback to simple reply if AI fails
+                try:
+                    _ = post_comment(thread_id, "Thank you for sharing this discussion!")
+                    replied += 1
+                    logging.info(f"Replied with fallback message to thread: {title} ({thread_id})")
+                except Exception as fallback_error:
+                    logging.error(f"Failed to post fallback reply: {str(fallback_error)}")
+
+            time.sleep(POST_SLEEP_SECONDS)
+            if MAX_THREADS_TO_REPLY and replied >= MAX_THREADS_TO_REPLY:
+                break
+
+        total_replied = replied
+        logging.info(f"Checked threads: {checked}")
+        logging.info(f"Replied to threads: {total_replied}")
+
+    # Summary
+    logging.info(f"Summary:")
+    logging.info(f"  Created new threads: {total_created}")
+    logging.info(f"  Replied to existing threads: {total_replied}")
+    logging.info(f"  Total operations: {total_created + total_replied}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
