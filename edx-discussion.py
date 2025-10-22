@@ -50,6 +50,9 @@ NEW_THREAD_TOPIC_ID = os.getenv("NEW_THREAD_TOPIC_ID", "course")
 NEW_THREAD_TYPE = os.getenv("NEW_THREAD_TYPE", "discussion")
 NEW_THREAD_COUNT = int(os.getenv("NEW_THREAD_COUNT", "1"))
 
+# AI author configuration
+AI_AUTHOR_NAME = os.getenv("AI_AUTHOR_NAME", "ibl_admin")
+
 
 # Mentor configuration
 TENANT = os.getenv("IBL_TENANT", "skillsai")
@@ -142,6 +145,60 @@ def is_within_hours(ts: str, hours: Optional[int]) -> bool:
         return delta.total_seconds() <= hours * 3600
     except Exception:
         return True  # fail-open
+
+def has_ai_already_replied(thread_id: str) -> bool:
+    """Check if the AI has already replied to this thread by looking at the latest comment."""
+    try:
+        url = f"{EDX_BASE_URL}/api/discussion/v1/comments/"
+        params = {
+            "thread_id": thread_id,
+            "page": 1,
+            "reverse_order": "true",
+            "requested_fields": "profile_image",
+            "enable_in_context_sidebar": "false"
+        }
+
+        logging.info(f"Checking comments for thread {thread_id}")
+        logging.info(f"GET {url} params={params}")
+
+        resp = SESSION.get(url, params=params, timeout=30)
+        logging.info(f"Response: {resp.status_code}")
+
+        if resp.status_code != 200:
+            logging.warning(f"Failed to get comments for thread {thread_id}: {resp.status_code}")
+            return False  # If we can't check, assume we haven't replied
+
+        data = resp.json()
+        comments = data.get("results", [])
+
+        # Log the comments response
+        logging.info("=== Thread Comments Response ===")
+        logging.info(f"Comments Data: {json.dumps(data, indent=2)}")
+
+        if not comments:
+            logging.info(f"No comments found for thread {thread_id}")
+            return False
+
+        # Get the latest comment (first in reverse order)
+        latest_comment = comments[0]
+        latest_author = latest_comment.get("author", "")
+
+        logging.info(f"Latest comment author: {latest_author}")
+        logging.info(f"AI author name: {AI_AUTHOR_NAME}")
+
+        # Check if the latest comment is from our AI author
+        has_replied = latest_author == AI_AUTHOR_NAME
+
+        if has_replied:
+            logging.info(f"AI has already replied to thread {thread_id} (latest author: {latest_author})")
+        else:
+            logging.info(f"AI has not replied to thread {thread_id} (latest author: {latest_author})")
+
+        return has_replied
+
+    except Exception as e:
+        logging.error(f"Error checking if AI has replied to thread {thread_id}: {str(e)}")
+        return False  # If we can't check, assume we haven't replied
 
 async def capture_ai_response(prompt: str, session_id: str, mentor: str, tenant: str, username: str, api_key: str) -> str:
     """Capture AI response from websocket and return the content."""
@@ -393,6 +450,11 @@ async def main():
                 continue
             if closed or not thread_id:
                 logging.info(f"Skipping thread: {title} ({thread_id})")
+                continue
+
+            # Check if AI has already replied to this thread
+            if has_ai_already_replied(thread_id):
+                logging.info(f"Skipping thread {title} ({thread_id}) - AI has already replied")
                 continue
 
             try:
