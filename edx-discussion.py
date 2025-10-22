@@ -126,38 +126,69 @@ def is_within_hours(ts: str, hours: Optional[int]) -> bool:
     except Exception:
         return True  # fail-open
 
-async def generate_llm_response_for_discussion(title: str, body: str) -> dict:
+async def generate_llm_response_for_discussion(thread_data: dict) -> dict:
     """
-    Given a discussion thread's title and body, use the API to generate a response payload.
+    Given a discussion thread's data, use the API to generate a response payload.
 
     Args:
-        title (str): Title of the discussion thread
-        body (str): Raw body of the discussion thread
+        thread_data (dict): Full thread data from the API
 
     Returns:
         dict: The LLM-generated response object (payload) as returned by the API
     """
     logging.info("=== AI Response Generation Started ===")
-    logging.info(f"Input Title: {title}")
-    logging.info(f"Input Body: {body}")
 
-    # Combine the title and body for context
-    discussion_prompt = f"Discussion Title: {title}\nDiscussion Body: {body}"
+    # Extract thread information
+    title = thread_data.get("title", "")
+    body = thread_data.get("raw_body", "")
+    author = thread_data.get("author", "")
+    created_at = thread_data.get("created_at", "")
+    comment_count = thread_data.get("comment_count", 0)
+
+    logging.info(f"Thread Title: {title}")
+    logging.info(f"Thread Author: {author}")
+    logging.info(f"Thread Created: {created_at}")
+    logging.info(f"Comment Count: {comment_count}")
+    logging.info(f"Thread Body: {body}")
+
+    # Create comprehensive context for the AI
+    discussion_prompt = f"""Discussion Thread Context:
+Title: {title}
+Author: {author}
+Created: {created_at}
+Existing Comments: {comment_count}
+Content: {body}
+
+Please provide a thoughtful response to this discussion thread as a mentor."""
+
     logging.info(f"Combined Prompt: {discussion_prompt}")
 
+    # Create a new session if none exists (following quickstart pattern)
+    session_id = SESSION_ID
+    mentor_unique_id = MENTOR_ID
+
+    if not session_id:
+        logging.info("Creating new session for mentor...")
+        session_id = api.create_chat_session(
+            username=USERNAME,
+            tenant=TENANT,
+            mentor_unique_id=mentor_unique_id,
+        )
+        logging.info(f"Created Session ID: {session_id}")
+
     logging.info("Calling API with parameters:")
-    logging.info(f"  Session ID: {SESSION_ID}")
-    logging.info(f"  Mentor ID: {MENTOR_ID}")
+    logging.info(f"  Session ID: {session_id}")
+    logging.info(f"  Mentor ID: {mentor_unique_id}")
     logging.info(f"  Tenant: {TENANT}")
     logging.info(f"  Username: {USERNAME}")
     logging.info(f"  API Key: {PLATFORM_API_KEY[:10]}...")
 
-    # Use the API to chat with mentor
+    # Use the API to chat with mentor (following quickstart pattern exactly)
     logging.info("Sending request to AI mentor...")
     response = await api.chat_with_websocket(
         prompt=discussion_prompt,
-        session_id=SESSION_ID,
-        mentor=MENTOR_ID,
+        session_id=session_id,
+        mentor=mentor_unique_id,
         tenant=TENANT,
         username=USERNAME,
         api_key=PLATFORM_API_KEY,
@@ -175,14 +206,22 @@ async def create_thread(course_id: str, title: str, body: str, topic_id: str = "
 
     # Generate AI response
     logging.info("Generating AI response for discussion...")
-    response = await generate_llm_response_for_discussion(title, body)
+    # Create a mock thread data for AI generation
+    mock_thread_data = {
+        "title": title,
+        "raw_body": body,
+        "author": "System",
+        "created_at": datetime.now().isoformat(),
+        "comment_count": 0
+    }
+    response = await generate_llm_response_for_discussion(mock_thread_data)
     logging.info(f"AI Response: {json.dumps(response, indent=2)}")
 
-    # Extract AI-generated content from response
-    ai_title = response.get("title", title)  # Use AI title or fallback to original
+    # Extract AI-generated content from response - keep original title, use AI for body
+    ai_title = title  # Keep original title as requested
     ai_body = response.get("body", response.get("content", body))  # Use AI body/content or fallback to original
 
-    logging.info(f"AI Generated Title: {ai_title}")
+    logging.info(f"Using Original Title: {ai_title}")
     logging.info(f"AI Generated Body: {ai_body}")
 
     payload = {
@@ -260,9 +299,9 @@ async def main():
                 continue
 
             try:
-                # Generate AI response for the thread
+                # Generate AI response for the thread using full thread data
                 logging.info(f"Generating AI response for thread: {title}")
-                ai_response = await generate_llm_response_for_discussion(title, thread.get("raw_body", ""))
+                ai_response = await generate_llm_response_for_discussion(thread)
 
                 # Extract AI-generated content for the reply
                 ai_reply = ai_response.get("body", ai_response.get("content", "Thank you for sharing this discussion!"))
