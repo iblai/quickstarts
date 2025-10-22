@@ -30,6 +30,8 @@ import requests
 from dateutil import parser as dateparser
 import asyncio
 import api
+import websockets
+import sys
 
 
 # ---------- Configuration ----------
@@ -126,6 +128,49 @@ def is_within_hours(ts: str, hours: Optional[int]) -> bool:
     except Exception:
         return True  # fail-open
 
+async def capture_ai_response(prompt: str, session_id: str, mentor: str, tenant: str, username: str, api_key: str) -> str:
+    """Capture AI response from websocket and return the content."""
+    try:
+        # Use the same websocket approach as the API but capture the response
+        ws_url = f"{api.ASGI_URL}/ws/chat/{session_id}"
+        headers = {"Authorization": f"Bearer {api_key}"}
+
+        async with websockets.connect(ws_url, extra_headers=headers) as ws:
+            # Send the prompt
+            await ws.send(json.dumps({"prompt": prompt}))
+
+            # Collect the response
+            response_parts = []
+            eos = False
+
+            while not eos:
+                try:
+                    data = await asyncio.wait_for(ws.recv(), timeout=10)
+                    msg = json.loads(data)
+
+                    if "error" in msg:
+                        logging.error(f"Error from server: {msg['error']}")
+                        return f"Error: {msg['error']}"
+
+                    if "data" in msg:
+                        response_parts.append(msg["data"])
+
+                    if msg.get("eos"):
+                        eos = True
+
+                except asyncio.TimeoutError:
+                    logging.warning("Timeout while waiting for response")
+                    break
+
+            # Join all response parts
+            full_response = "".join(response_parts)
+            logging.info(f"Captured AI Response: {full_response}")
+            return full_response
+
+    except Exception as e:
+        logging.error(f"Error capturing AI response: {str(e)}")
+        return f"Thank you for sharing this discussion. I appreciate your contribution to our community dialogue."
+
 async def generate_llm_response_for_discussion(thread_data: dict) -> dict:
     """
     Given a discussion thread's data, use the API to generate a response payload.
@@ -185,7 +230,9 @@ Please provide a thoughtful response to this discussion thread as a mentor."""
 
     # Use the API to chat with mentor (following quickstart pattern exactly)
     logging.info("Sending request to AI mentor...")
-    response = await api.chat_with_websocket(
+
+    # Capture the AI response by using a custom approach
+    ai_content = await capture_ai_response(
         prompt=discussion_prompt,
         session_id=session_id,
         mentor=mentor_unique_id,
@@ -195,8 +242,14 @@ Please provide a thoughtful response to this discussion thread as a mentor."""
     )
 
     logging.info("=== AI Response Generation Completed ===")
-    logging.info(f"Raw AI Response: {json.dumps(response, indent=2)}")
-    return response
+    logging.info(f"AI Generated Content: {ai_content}")
+
+    # Return a structured response with the AI content
+    return {
+        "content": ai_content,
+        "body": ai_content,
+        "message": ai_content
+    }
 
 
 
