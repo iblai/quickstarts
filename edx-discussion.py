@@ -91,6 +91,11 @@ def list_threads(course_id: Optional[str] = None, page_size: int = 50) -> Genera
         if resp.status_code != 200:
             raise RuntimeError(f"Failed to list threads: {resp.status_code} {resp.text}")
         data = resp.json()
+
+        # Log the full JSON response from GET request
+        logging.info("=== GET Threads Response ===")
+        logging.info(f"Full JSON Response: {json.dumps(data, indent=2)}")
+
         results = data.get("results", [])
         for thread in results:
             yield thread
@@ -109,11 +114,21 @@ def post_comment(thread_id: str, body: str) -> Dict:
         "raw_body": body,
     }
     logging.info(f"POST {url}")
+    logging.info("=== POST Comment Payload ===")
+    logging.info(f"Payload: {json.dumps(payload, indent=2)}")
     logging.debug(f"POST {url} json={payload}")
     resp = SESSION.post(url, data=json.dumps(payload), timeout=30)
     logging.info(f"Response: {resp.status_code}")
-    if resp.status_code not in (200, 201):
+
+    # Log the response from POST comment
+    if resp.status_code in (200, 201):
+        response_data = resp.json()
+        logging.info("=== POST Comment Response ===")
+        logging.info(f"Response Data: {json.dumps(response_data, indent=2)}")
+    else:
+        logging.error(f"Failed to post comment to thread {thread_id}: {resp.status_code} {resp.text}")
         raise RuntimeError(f"Failed to post comment to thread {thread_id}: {resp.status_code} {resp.text}")
+
     return resp.json()
 
 def is_within_hours(ts: str, hours: Optional[int]) -> bool:
@@ -215,6 +230,11 @@ Please provide a thoughtful response to this discussion thread as a mentor."""
 
     logging.info(f"Combined Prompt: {discussion_prompt}")
 
+    # Log the data being sent to LLM
+    logging.info("=== Data Sent to LLM ===")
+    logging.info(f"Thread Data: {json.dumps(thread_data, indent=2)}")
+    logging.info(f"Discussion Prompt: {discussion_prompt}")
+
     # Reuse existing session or create new one
     session_id = _ai_session_id or SESSION_ID
     mentor_unique_id = MENTOR_ID
@@ -303,12 +323,21 @@ async def create_thread(course_id: str, title: str, body: str, topic_id: str = "
         "enable_in_context_sidebar": False
     }
     logging.info(f"POST {url}")
+    logging.info("=== POST Thread Payload ===")
     logging.info(f"Payload: {json.dumps(payload, indent=2)}")
     logging.debug(f"POST {url} json={payload}")
     resp = SESSION.post(url, data=json.dumps(payload), timeout=30)
     logging.info(f"Response: {resp.status_code}")
-    if resp.status_code not in (200, 201):
+
+    # Log the response from POST thread
+    if resp.status_code in (200, 201):
+        response_data = resp.json()
+        logging.info("=== POST Thread Response ===")
+        logging.info(f"Response Data: {json.dumps(response_data, indent=2)}")
+    else:
+        logging.error(f"Failed to create thread: {resp.status_code} {resp.text}")
         raise RuntimeError(f"Failed to create thread: {resp.status_code} {resp.text}")
+
     return resp.json()
 
 # ---------- Main Logic ----------
