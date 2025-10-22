@@ -340,6 +340,12 @@ async def capture_ai_response(prompt: str, session_id: str, mentor: str, tenant:
 
         # Join all response parts
         full_response = "".join(response_parts)
+
+        # Clean up the response - remove placeholder names and signatures
+        full_response = full_response.replace("[Your Name]", "")
+        full_response = full_response.replace("Best,", "").strip()
+        full_response = full_response.replace("Best,", "").strip()  # Remove any remaining instances
+
         logging.info(f"Captured Full AI Response: {full_response}")
         return full_response
 
