@@ -569,6 +569,9 @@ async def process_discussion_threads():
 
             logging.info(f"Replied with AI response to thread: {title} ({thread_id})")
 
+            # Small delay before verification to ensure response is processed
+            await asyncio.sleep(2)
+
             # Wait for the response to be processed and verify it was posted
             await verify_response_posted(thread_id, title)
 
@@ -580,6 +583,9 @@ async def process_discussion_threads():
             threads_replied += 1
             logging.info(f"Replied with fallback message to thread: {title} ({thread_id})")
 
+            # Small delay before verification to ensure response is processed
+            await asyncio.sleep(2)
+
             # Wait for the fallback response to be processed
             await verify_response_posted(thread_id, title)
 
@@ -590,18 +596,30 @@ async def process_discussion_threads():
     logging.info(f"Replied to threads: {threads_replied}")
     return threads_checked, threads_replied
 
-async def verify_response_posted(thread_id: str, thread_title: str, max_attempts: int = 10, delay_seconds: int = 2):
+async def verify_response_posted(thread_id: str, thread_title: str, max_attempts: int = 15, delay_seconds: int = 3):
     """Verify that our AI response was actually posted before proceeding."""
     logging.info(f"Verifying response was posted to thread {thread_title} ({thread_id})")
+
+    # Get initial comment count to track changes
+    initial_count = await get_comment_count(thread_id)
+    logging.info(f"Initial comment count for thread {thread_id}: {initial_count}")
 
     for attempt in range(max_attempts):
         await asyncio.sleep(delay_seconds)
 
         try:
-            # Check if AI has already replied (this will be true if our response was posted)
-            if has_ai_already_replied(thread_id):
-                logging.info(f"✅ Response confirmed posted to thread {thread_title} (attempt {attempt + 1})")
-                return True
+            # Get current comment count
+            current_count = await get_comment_count(thread_id)
+            logging.info(f"Current comment count: {current_count} (attempt {attempt + 1}/{max_attempts})")
+
+            # Check if comment count increased (indicating our response was posted)
+            if current_count > initial_count:
+                # Double-check that AI is the latest author
+                if has_ai_already_replied(thread_id):
+                    logging.info(f"✅ Response confirmed posted to thread {thread_title} (attempt {attempt + 1})")
+                    return True
+                else:
+                    logging.info(f"⏳ Comment count increased but AI not latest author yet... (attempt {attempt + 1})")
             else:
                 logging.info(f"⏳ Waiting for response to be processed... (attempt {attempt + 1}/{max_attempts})")
 
@@ -611,33 +629,58 @@ async def verify_response_posted(thread_id: str, thread_title: str, max_attempts
     logging.warning(f"⚠️ Could not verify response was posted to thread {thread_title} after {max_attempts} attempts")
     return False
 
+async def get_comment_count(thread_id: str) -> int:
+    """Get the current comment count for a thread."""
+    try:
+        url = f"{EDX_BASE_URL}/api/discussion/v1/comments/"
+        params = {
+            "thread_id": thread_id,
+            "page": 1,
+            "reverse_order": "true",
+            "requested_fields": "profile_image",
+            "enable_in_context_sidebar": "false"
+        }
+
+        resp = SESSION.get(url, params=params, timeout=30)
+        if resp.status_code == 200:
+            data = resp.json()
+            comments = data.get("results", [])
+            return len(comments)
+        else:
+            logging.warning(f"Failed to get comment count for thread {thread_id}: {resp.status_code}")
+            return 0
+
+    except Exception as e:
+        logging.warning(f"Error getting comment count for thread {thread_id}: {str(e)}")
+        return 0
+
 async def create_new_threads():
     """Create new threads if enabled."""
     if not CREATE_NEW_THREADS:
         return 0
 
-    logging.info(f"Creating {NEW_THREAD_COUNT} new discussion threads...")
+        logging.info(f"Creating {NEW_THREAD_COUNT} new discussion threads...")
     threads_created = 0
 
-    for i in range(NEW_THREAD_COUNT):
-        try:
-            # Add a timestamp to make titles unique
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            title = f"{NEW_THREAD_TITLE} - {timestamp}"
-            body = f"{NEW_THREAD_BODY} - Created at {timestamp}"
+        for i in range(NEW_THREAD_COUNT):
+            try:
+                # Add a timestamp to make titles unique
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                title = f"{NEW_THREAD_TITLE} - {timestamp}"
+                body = f"{NEW_THREAD_BODY} - Created at {timestamp}"
 
-            result = await create_thread(
-                course_id=COURSE_ID,
-                title=title,
-                body=body,
-                topic_id=NEW_THREAD_TOPIC_ID,
-                thread_type=NEW_THREAD_TYPE
-            )
+                result = await create_thread(
+                    course_id=COURSE_ID,
+                    title=title,
+                    body=body,
+                    topic_id=NEW_THREAD_TOPIC_ID,
+                    thread_type=NEW_THREAD_TYPE
+                )
             threads_created += 1
-            thread_id = result.get("id", "unknown")
-            logging.info(f"Created new thread: {title} (ID: {thread_id})")
-        except Exception as e:
-            logging.error(f"Failed to create thread: {str(e)}")
+                thread_id = result.get("id", "unknown")
+                logging.info(f"Created new thread: {title} (ID: {thread_id})")
+            except Exception as e:
+                logging.error(f"Failed to create thread: {str(e)}")
 
         await asyncio.sleep(POST_SLEEP_SECONDS)
 
