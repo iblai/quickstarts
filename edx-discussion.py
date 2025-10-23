@@ -54,7 +54,7 @@ NEW_THREAD_COUNT = int(os.getenv("NEW_THREAD_COUNT", "1"))
 AI_AUTHOR_NAME = os.getenv("AI_AUTHOR_NAME", "iblai")
 
 # Loop configuration
-LOOP_INTERVAL_SECONDS = int(os.getenv("LOOP_INTERVAL_SECONDS", "60"))
+LOOP_INTERVAL_SECONDS = int(os.getenv("LOOP_INTERVAL_SECONDS", "30"))
 MAX_RUNTIME_HOURS = int(os.getenv("MAX_RUNTIME_HOURS", "24"))  # Run for max 24 hours by default
 MAX_RUNTIME_SECONDS = MAX_RUNTIME_HOURS * 3600
 
@@ -569,6 +569,9 @@ async def process_discussion_threads():
 
             logging.info(f"Replied with AI response to thread: {title} ({thread_id})")
 
+            # Wait for the response to be processed and verify it was posted
+            await verify_response_posted(thread_id, title)
+
         except Exception as e:
             logging.error(f"Failed to generate AI response for thread {title}: {str(e)}")
             # Post a fallback response
@@ -577,12 +580,36 @@ async def process_discussion_threads():
             threads_replied += 1
             logging.info(f"Replied with fallback message to thread: {title} ({thread_id})")
 
+            # Wait for the fallback response to be processed
+            await verify_response_posted(thread_id, title)
+
         # Small delay between posts to avoid rate limiting
         await asyncio.sleep(POST_SLEEP_SECONDS)
 
     logging.info(f"Checked threads: {threads_checked}")
     logging.info(f"Replied to threads: {threads_replied}")
     return threads_checked, threads_replied
+
+async def verify_response_posted(thread_id: str, thread_title: str, max_attempts: int = 10, delay_seconds: int = 2):
+    """Verify that our AI response was actually posted before proceeding."""
+    logging.info(f"Verifying response was posted to thread {thread_title} ({thread_id})")
+
+    for attempt in range(max_attempts):
+        await asyncio.sleep(delay_seconds)
+
+        try:
+            # Check if AI has already replied (this will be true if our response was posted)
+            if has_ai_already_replied(thread_id):
+                logging.info(f"✅ Response confirmed posted to thread {thread_title} (attempt {attempt + 1})")
+                return True
+            else:
+                logging.info(f"⏳ Waiting for response to be processed... (attempt {attempt + 1}/{max_attempts})")
+
+        except Exception as e:
+            logging.warning(f"Error verifying response for thread {thread_id}: {str(e)}")
+
+    logging.warning(f"⚠️ Could not verify response was posted to thread {thread_title} after {max_attempts} attempts")
+    return False
 
 async def create_new_threads():
     """Create new threads if enabled."""
