@@ -54,7 +54,7 @@ NEW_THREAD_COUNT = int(os.getenv("NEW_THREAD_COUNT", "1"))
 AI_AUTHOR_NAME = os.getenv("AI_AUTHOR_NAME", "iblai")
 
 # Loop configuration
-LOOP_INTERVAL_SECONDS = int(os.getenv("LOOP_INTERVAL_SECONDS", "30"))
+LOOP_INTERVAL_SECONDS = int(os.getenv("LOOP_INTERVAL_SECONDS", "60"))
 MAX_RUNTIME_HOURS = int(os.getenv("MAX_RUNTIME_HOURS", "24"))  # Run for max 24 hours by default
 MAX_RUNTIME_SECONDS = MAX_RUNTIME_HOURS * 3600
 
